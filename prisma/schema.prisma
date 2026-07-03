@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── 身份与组织 ─────────────────────────────────────────────
+
+model User {
+  id       String @id @default(cuid())
+  username String @unique
+  password String
+  name     String
+  role     String @default("STUDENT") // STUDENT | TEACHER | ADMIN
+
+  classId String?
+  class   Class?  @relation("ClassStudents", fields: [classId], references: [id])
+
+  taughtClasses Class[] @relation("TeacherClasses")
+
+  createdMaterials LearningMaterial[] @relation("MaterialAuthor")
+  createdQuestions Question[]        @relation("QuestionCreator")
+  exerciseSessions ExerciseSession[] @relation("ExerciseStudent")
+  weaknesses       StudentWeakness[]
+  masteryRecords   MasteryRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Class {
+  id    String @id @default(cuid())
+  name  String
+  grade String
+
+  students User[] @relation("ClassStudents")
+  teachers User[] @relation("TeacherClasses")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Subject {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String
+  icon        String @default("")
+
+  materials       LearningMaterial[]
+  knowledgePoints KnowledgePoint[]
+  exerciseSessions ExerciseSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── 学习资料与知识点 ────────────────────────────────────────
+
+model LearningMaterial {
+  id        String @id @default(cuid())
+  title     String
+  type      String @default("TEXT") // TEXT | PDF | IMAGE | VIDEO
+  content   String
+  fileUrl   String @default("")
+  subjectId String
+  authorId  String
+
+  subject Subject @relation(fields: [subjectId], references: [id])
+  author  User    @relation("MaterialAuthor", fields: [authorId], references: [id])
+  chunks  MaterialChunk[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MaterialChunk {
+  id         String @id @default(cuid())
+  materialId String
+  content    String
+  chunkIndex Int
+
+  material LearningMaterial @relation(fields: [materialId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model KnowledgePoint {
+  id              String @id @default(cuid())
+  name            String
+  description     String
+  subjectId       String
+  parentId        String?
+  difficultyLevel String @default("BASIC") // BASIC | INTERMEDIATE | ADVANCED
+  orderIndex      Int    @default(0)
+
+  subject   Subject          @relation(fields: [subjectId], references: [id])
+  parent    KnowledgePoint?  @relation("KPTree", fields: [parentId], references: [id])
+  children  KnowledgePoint[] @relation("KPTree")
+  questions Question[]
+  weaknesses StudentWeakness[]
+  masteries  MasteryRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── 练习与评估 ─────────────────────────────────────────────
+
+model Question {
+  id                String @id @default(cuid())
+  knowledgePointId  String
+  type              String @default("MULTIPLE_CHOICE") // MULTIPLE_CHOICE | TF | FILL_BLANK | SHORT_ANSWER
+  content           String
+  options           String @default("[]") // JSON array for choices
+  correctAnswer     String
+  difficulty        String @default("MEDIUM") // EASY | MEDIUM | HARD
+  bloomLevel        String @default("REMEMBER") // REMEMBER | UNDERSTAND | APPLY | ANALYZE | EVALUATE | CREATE
+  aiGenerated       Boolean @default(false)
+  reviewedByTeacher Boolean @default(false)
+  createdById       String
+
+  knowledgePoint KnowledgePoint @relation(fields: [knowledgePointId], references: [id])
+  creator        User           @relation("QuestionCreator", fields: [createdById], references: [id])
+  answers        ExerciseAnswer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ExerciseSession {
+  id             String  @id @default(cuid())
+  studentId      String
+  subjectId      String
+  status         String  @default("IN_PROGRESS") // IN_PROGRESS | COMPLETED
+  totalQuestions Int     @default(0)
+  correctCount   Int     @default(0)
+  score          Float   @default(0)
+  weaknessData   String  @default("{}") // JSON: 薄弱点分析
+
+  student User           @relation("ExerciseStudent", fields: [studentId], references: [id])
+  subject Subject        @relation(fields: [subjectId], references: [id])
+  answers ExerciseAnswer[]
+
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model ExerciseAnswer {
+  id            String @id @default(cuid())
+  sessionId     String
+  questionId    String
+  studentAnswer String
+  isCorrect     Boolean
+  score         Float  @default(0)
+  aiFeedback    String @default("") // JSON: AI 评估反馈
+
+  session  ExerciseSession @relation(fields: [sessionId], references: [id])
+  question Question        @relation(fields: [questionId], references: [id])
+
+  answeredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+}
+
+// ─── 掌握度追踪 ─────────────────────────────────────────────
+
+model StudentWeakness {
+  id               String @id @default(cuid())
+  studentId        String
+  knowledgePointId String
+  masteryLevel     Float  @default(0) // 0-100
+  bloomBreakdown   String @default("{}") // JSON: { REMEMBER: 80, UNDERSTAND: 60, ... }
+
+  student        User           @relation(fields: [studentId], references: [id])
+  knowledgePoint KnowledgePoint @relation(fields: [knowledgePointId], references: [id])
+
+  identifiedAt    DateTime @default(now())
+  lastPracticedAt DateTime @updatedAt
+}
+
+model MasteryRecord {
+  id               String @id @default(cuid())
+  studentId        String
+  knowledgePointId String
+  sessionId        String
+  previousLevel    Float  @default(0)
+  newLevel         Float  @default(0)
+  delta            Float  @default(0)
+
+  student        User           @relation(fields: [studentId], references: [id])
+  knowledgePoint KnowledgePoint @relation(fields: [knowledgePointId], references: [id])
+
+  recordedAt DateTime @default(now())
+}
+
+// ─── 系统配置 ────────────────────────────────────────────────
+
+model SystemConfig {
+  id          String @id @default(cuid())
+  key         String @unique
+  value       String // JSON
+  description String @default("")
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+}
+
+model AIGenerationLog {
+  id               String @id @default(cuid())
+  type             String // EXTRACT_KNOWLEDGE | GENERATE_QUESTION | EVALUATE_ANSWER | ANALYZE_WEAKNESS
+  provider         String @default("openai-compatible")
+  model            String @default("")
+  promptHash       String @default("")
+  responsePreview  String @default("") // 前200字符
+  tokens           Int    @default(0)
+  durationMs       Int    @default(0)
+  materialId       String?
+  createdAt        DateTime @default(now())
+}
