@@ -67,7 +67,7 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD curl -f http://localhost:3001/login || exit 1
 
 CMD ["sh", "-c", "\
-  node_modules/.bin/prisma db push --skip-generate 2>/dev/null && \
-  node ./prisma/seed.js 2>/dev/null; \
+  node node_modules/prisma/build/index.js db push --skip-generate --schema=./prisma/schema.prisma && \
+  node ./prisma/seed.js; \
   exec node server.js \
 "]
