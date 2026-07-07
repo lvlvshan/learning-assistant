@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type");
   const reviewed = searchParams.get("reviewed"); // "true" | "false"
   const aiGenerated = searchParams.get("aiGenerated"); // "true" | "false"
+  const aiReviewStatus = searchParams.get("aiReviewStatus");
 
   const where: any = {};
 
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
   if (reviewed === "false") where.reviewedByTeacher = false;
   if (aiGenerated === "true") where.aiGenerated = true;
   if (aiGenerated === "false") where.aiGenerated = false;
+  if (aiReviewStatus) where.aiReviewStatus = aiReviewStatus;
 
   // 如果按科目筛选，通过知识点关联
   if (subjectId) {
@@ -86,7 +88,8 @@ export async function POST(request: NextRequest) {
         difficulty: difficulty || "MEDIUM",
         bloomLevel: bloomLevel || "REMEMBER",
         aiGenerated: false,
-        reviewedByTeacher: true,
+        reviewedByTeacher: false,
+        aiReviewStatus: "PENDING",
         createdById: auth.userId,
       },
     });

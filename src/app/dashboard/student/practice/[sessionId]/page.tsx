@@ -34,7 +34,7 @@ interface AnswerFeedback {
 export default function PracticeSession() {
   const params = useParams();
   const router = useRouter();
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const sessionId = params.sessionId as string;
 
   const [loading, setLoading] = useState(true);
@@ -114,7 +114,7 @@ export default function PracticeSession() {
   // 完成练习
   const handleFinish = async () => {
     setLoading(true);
-    Modal.confirm({
+    modal.confirm({
       title: "确认完成练习？",
       content: `已作答 ${answeredCount}/${questions.length} 题，未作答的题目将计为错误。`,
       okText: "确认完成",
@@ -161,7 +161,7 @@ export default function PracticeSession() {
             onChange={(e) => setCurrentAnswer(e.target.value)}
             disabled={isAnswered}
           >
-            <Space direction="vertical" style={{ width: "100%" }}>
+            <Space orientation="vertical" style={{ width: "100%" }}>
               {q.options?.map((opt, i) => (
                 <Radio
                   key={i}
@@ -229,7 +229,7 @@ export default function PracticeSession() {
   };
 
   if (loading && !finished) {
-    return <div style={{ textAlign: "center", padding: 60 }}><Spin size="large" tip="加载题目..." /></div>;
+    return <div style={{ textAlign: "center", padding: 60 }}><Spin size="large" description="加载题目..." /></div>;
   }
 
   // 练习结果页
@@ -295,7 +295,7 @@ export default function PracticeSession() {
         {!result.session.passed && (
           <Alert
             style={{ marginTop: 16 }}
-            message="💡 低于 90 分？点击上方「针对薄弱点重新出题」，AI 将为你生成针对性练习题！"
+            title="💡 低于 90 分？点击上方「针对薄弱点重新出题」，AI 将为你生成针对性练习题！"
             type="info"
             showIcon
           />

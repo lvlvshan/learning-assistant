@@ -85,7 +85,7 @@ export default function StudentDetail() {
               title="平均分"
               value={data.summary.avgScore}
               suffix="分"
-              valueStyle={{ color: data.summary.avgScore >= 80 ? "#52c41a" : data.summary.avgScore >= 60 ? "#faad14" : "#ff4d4f" }}
+              styles={{ content: { color: data.summary.avgScore >= 80 ? "#52c41a" : data.summary.avgScore >= 60 ? "#faad14" : "#ff4d4f" } }}
             />
           </Card>
         </Col>

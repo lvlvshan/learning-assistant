@@ -4,11 +4,20 @@ import { chatWithJSON } from "@/lib/ai/provider";
 import { KNOWLEDGE_EXTRACTION_SYSTEM } from "@/lib/ai/prompts";
 import { KnowledgeExtractionResult } from "@/lib/ai/types";
 import { getAuthFromRequest, unauthorizedResponse } from "@/lib/auth";
+import { loadMinerUConfig } from "@/lib/ai/config";
+import { MinerUClient } from "@/lib/mineru";
 import { execSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import path from "path";
 
-// 从上传文件中提取文本
+const MAX_CONTENT_LENGTH = 15000; // MinerU 提取文本上限
+const MAX_LEGACY_LENGTH = 10000;  // 原有提取方案上限
+
+/** MinerU 精准解析 API 支持的所有文件类型 */
+const MINERU_SUPPORTED_TYPES = new Set(["PDF", "PPT", "IMAGE", "DOC", "XLSX"]);
+
+// ─── 传统文件提取（降级方案）───────────────────────────────────
+
 function extractTextFromFile(fileUrl: string): string {
   const filePath = path.join(process.cwd(), "public", fileUrl);
   if (!existsSync(filePath)) {
@@ -18,7 +27,6 @@ function extractTextFromFile(fileUrl: string): string {
   const ext = path.extname(filePath).toLowerCase();
 
   if ([".pptx", ".ppt", ".pptm"].includes(ext)) {
-    // 用 Python 提取 PPTX 文本
     const scriptPath = path.join(process.cwd(), "scripts", "extract_pptx.py");
     const result = execSync(`python "${scriptPath}" "${filePath}"`, {
       encoding: "utf-8",
@@ -31,31 +39,85 @@ function extractTextFromFile(fileUrl: string): string {
     return readFileSync(filePath, "utf-8").trim();
   }
 
-  throw new Error(`不支持的文件类型: ${ext}（AI 分析仅支持 PPTX 和 TXT 文件）`);
+  throw new Error(`不支持的文件类型: ${ext}（内置提取仅支持 PPTX 和 TXT 文件，其他格式请启用 MinerU 文档解析）`);
 }
 
-// 获取 AI 分析用的文本内容
-async function getAnalysisContent(material: any): Promise<string> {
-  const isFile = material.type !== "TEXT";
+// ─── 解析文件 URL ─────────────────────────────────────────────
 
-  if (!isFile) {
-    // TEXT 类型直接使用 content 字段
-    return material.content.slice(0, 5000);
-  }
-
-  // 文件类型：从 content 第二行解析文件 URL
+/** 从 material.content 中提取文件 URL（格式: "[文件] 名 (类型)\\n/uploads/xxx"） */
+function extractFileUrl(material: any): string {
   const lines = (material.content || "").split("\n");
-  const fileUrl = lines[1]?.trim();
-  if (!fileUrl) {
-    throw new Error("无法找到文件路径，请重新上传");
+  const url = lines[1]?.trim();
+  if (!url) throw new Error("无法找到文件路径，请重新上传");
+  return url;
+}
+
+/** 获取文件的绝对路径 */
+function getAbsolutePath(fileUrl: string): string {
+  return path.join(process.cwd(), "public", fileUrl);
+}
+
+// ─── 获取 AI 分析用的文本内容 ─────────────────────────────────
+
+async function getAnalysisContent(material: any): Promise<string> {
+  const { type, title, content } = material;
+
+  // ── 分支1：TEXT 类型 → 直接取 content 字段 ──────────────────
+  if (type === "TEXT") {
+    return (content || "").slice(0, MAX_LEGACY_LENGTH);
   }
 
+  // ── 分支2：MinerU 支持的文件类型 ────────────────────────────
+  if (MINERU_SUPPORTED_TYPES.has(type)) {
+    const mineruConfig = await loadMinerUConfig();
+
+    if (mineruConfig.enabled && mineruConfig.token) {
+      // MinerU 已启用 → 尝试解析
+      try {
+        const fileUrl = extractFileUrl(material);
+        const filePath = getAbsolutePath(fileUrl);
+        if (!existsSync(filePath)) {
+          throw new Error(`文件不存在: ${fileUrl}`);
+        }
+
+        const client = new MinerUClient(mineruConfig.token);
+        const { text } = await client.parseDocument(filePath);
+        if (text) {
+          console.log(`[MinerU] 成功解析: ${title}, 提取 ${text.length} 字符`);
+          return text.slice(0, MAX_CONTENT_LENGTH);
+        }
+        throw new Error("MinerU 返回了空内容");
+      } catch (err: any) {
+        // PPT 有传统降级方案，其他类型没有
+        if (type === "PPT") {
+          console.warn(`[MinerU] 解析失败，降级到传统方案: ${err.message}`);
+          // 下面走 fallback
+        } else {
+          throw new Error(
+            `MinerU 文档解析失败: ${err.message}。请检查 MinerU 配置或文件格式。`,
+          );
+        }
+      }
+    } else {
+      // MinerU 未启用 → PPT 可以降级，其他类型报错
+      if (type !== "PPT") {
+        throw new Error(
+          `该文件类型(${type})需要启用 MinerU 文档解析服务才能提取文本。请在系统设置中配置并启用 MinerU。`,
+        );
+      }
+      // PPT 降级到下方传统方案
+    }
+  }
+
+  // ── 分支3：非 MinerU 类型（VIDEO 等）→ 传统方案 ────────────
+  // 也作为 PPT 降级兜底入口
+  const fileUrl = extractFileUrl(material);
   const fileText = extractTextFromFile(fileUrl);
   if (!fileText) {
     throw new Error("未能从文件中提取出文本内容");
   }
 
-  return fileText.slice(0, 5000);
+  return fileText.slice(0, MAX_LEGACY_LENGTH);
 }
 
 export async function POST(
@@ -87,12 +149,26 @@ export async function POST(
       return NextResponse.json({ error: "AI 未能提取出知识点" }, { status: 500 });
     }
 
+    // 创建根知识点（以资料标题命名），AI 提取的知识点作为其子节点
+    const rootKP = await prisma.knowledgePoint.create({
+      data: {
+        name: material.title,
+        description: `来自资料「${material.title}」的知识点`,
+        subjectId: material.subjectId,
+        parentId: null,
+        difficultyLevel: "BASIC",
+        orderIndex: 0,
+      },
+    });
+
     const savedPoints = await saveKnowledgePoints(
       result.knowledgePoints,
-      null,
+      rootKP.id,
       material.subjectId,
       material.id
     );
+
+    const allPoints = [{ ...rootKP, children: savedPoints }];
 
     await prisma.aIGenerationLog.create({
       data: {
@@ -104,7 +180,7 @@ export async function POST(
     });
 
     return NextResponse.json({
-      knowledgePoints: savedPoints,
+      knowledgePoints: allPoints,
       raw: result,
     });
   } catch (error: any) {

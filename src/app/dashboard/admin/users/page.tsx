@@ -34,7 +34,7 @@ const roleLabels: Record<string, string> = {
 };
 
 export default function UserManagement() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -84,7 +84,7 @@ export default function UserManagement() {
   };
 
   const handleDelete = async (id: string) => {
-    Modal.confirm({
+    modal.confirm({
       title: "确认删除",
       content: "删除后不可恢复，确定删除该用户？",
       okText: "确认",

@@ -6,7 +6,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import apiClient from "@/lib/api";
 
 export default function SubjectManagement() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [subjects, setSubjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -45,7 +45,7 @@ export default function SubjectManagement() {
   };
 
   const handleDelete = async (id: string) => {
-    Modal.confirm({
+    modal.confirm({
       title: "确认删除",
       okText: "确认",
       cancelText: "取消",

@@ -125,7 +125,7 @@ export default function ClassAnalysis() {
             </Col>
             <Col xs={8} sm={6}>
               <Card size="small">
-                <Statistic title="班级平均分" value={avgScore} suffix="分" valueStyle={{ color: avgScore >= 80 ? "#52c41a" : avgScore >= 60 ? "#faad14" : "#ff4d4f" }} />
+                <Statistic title="班级平均分" value={avgScore} suffix="分" styles={{ content: { color: avgScore >= 80 ? "#52c41a" : avgScore >= 60 ? "#faad14" : "#ff4d4f" } }} />
               </Card>
             </Col>
           </Row>

@@ -1,0 +1,46 @@
+# dependencies
+node_modules
+.npm
+
+# next.js build
+.next
+out
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# env
+.env*
+!.env.example
+
+# git
+.git
+.gitignore
+
+# Claude
+.claude
+
+# SQLite
+*.db
+*.db-journal
+
+# uploads (generated at runtime)
+public/uploads
+
+# temp
+tmp
+temp
+*.log
+*.bak
+
+# docker
+Dockerfile
+.dockerignore
+.github

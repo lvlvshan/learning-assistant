@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthFromRequest, unauthorizedResponse, forbiddenResponse } from "@/lib/auth";
+import { clearMinerUConfigCache, clearAIConfigCache } from "@/lib/ai/config";
 
 // 获取系统配置
 export async function GET(request: NextRequest) {
@@ -39,6 +40,11 @@ export async function PUT(request: NextRequest) {
         description: description || "",
       },
     });
+
+    // 配置更新后清除对应缓存
+    const configKey = key || "ai-config";
+    if (configKey === "mineru-config") clearMinerUConfigCache();
+    if (configKey === "ai-config") clearAIConfigCache();
 
     return NextResponse.json({
       config: { key: config.key, value: JSON.parse(config.value), description: config.description },

@@ -30,12 +30,12 @@ const typeLabels: Record<string, string> = {
 };
 
 export default function TeacherMaterials() {
-  const { message: msg } = App.useApp();
+  const { message: msg, modal } = App.useApp();
   const [materials, setMaterials] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [analyzing, setAnalyzing] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState<string[]>([]);
   const [analyzeResult, setAnalyzeResult] = useState<any>(null);
   const [analyzeModalOpen, setAnalyzeModalOpen] = useState(false);
   const [form] = Form.useForm();
@@ -94,7 +94,8 @@ export default function TeacherMaterials() {
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append("file", fileList[0].originFileObj as Blob);
+      const fileObj = fileList[0].originFileObj || fileList[0];
+      formData.append("file", fileObj as Blob);
       formData.append("title", values.title);
       formData.append("subjectId", values.subjectId);
 
@@ -122,9 +123,9 @@ export default function TeacherMaterials() {
     }
   };
 
-  // AI 分析知识点
+  // AI 分析知识点（支持多文件并发）
   const handleAnalyze = async (id: string) => {
-    setAnalyzing(id);
+    setAnalyzing((prev) => [...prev, id]);
     try {
       const res = await apiClient.post(`/materials/${id}/analyze`);
       setAnalyzeResult(res.data);
@@ -133,13 +134,13 @@ export default function TeacherMaterials() {
     } catch (error: any) {
       msg.error(error.response?.data?.error || "分析失败");
     } finally {
-      setAnalyzing(null);
+      setAnalyzing((prev) => prev.filter((x) => x !== id));
     }
   };
 
   // 删除资料
   const handleDelete = (id: string) => {
-    Modal.confirm({
+    modal.confirm({
       title: "确认删除",
       content: "删除后不可恢复，确定删除该资料？",
       okText: "确认",
@@ -157,7 +158,7 @@ export default function TeacherMaterials() {
 
   // 查看资料详情
   const handleView = (material: any) => {
-    Modal.info({
+    modal.info({
       title: material.title,
       width: 640,
       content: (
@@ -215,12 +216,12 @@ export default function TeacherMaterials() {
       width: 240,
       render: (_: any, record: any) => (
         <Space>
-          {["TEXT", "PPT", "PDF"].includes(record.type) && (
+          {["TEXT", "PPT", "PDF", "IMAGE", "DOC", "XLSX"].includes(record.type) && (
             <Tooltip title="AI 提取知识点">
               <Button
                 type="link"
                 icon={<RobotOutlined />}
-                loading={analyzing === record.id}
+                loading={analyzing.includes(record.id)}
                 onClick={() => handleAnalyze(record.id)}
               >
                 AI 分析
@@ -331,10 +332,13 @@ export default function TeacherMaterials() {
                       fileList={fileList}
                       beforeUpload={(file) => {
                         setFileList([file as UploadFile]);
+                        // 自动用文件名（去掉扩展名）填充标题
+                        const fileName = file.name.replace(/\.[^.]+$/, "");
+                        fileForm.setFieldValue("title", fileName);
                         return false;
                       }}
                       onRemove={() => setFileList([])}
-                      accept=".pdf,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.mp4,.txt"
+                      accept=".pdf,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.mp4,.txt,.doc,.docx,.xls,.xlsx"
                     >
                       <p className="ant-upload-drag-icon"><InboxOutlined /></p>
                       <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
@@ -368,7 +372,7 @@ export default function TeacherMaterials() {
         {analyzeResult && (
           <div>
             <Alert
-              message="AI 提取的知识点已自动保存到知识点库，请前往「知识点管理」查看和编辑。"
+              title="AI 提取的知识点已自动保存到知识点库，请前往「知识点管理」查看和编辑。"
               type="success"
               showIcon
               style={{ marginBottom: 16 }}

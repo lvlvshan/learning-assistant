@@ -120,6 +120,10 @@ model Question {
   bloomLevel        String @default("REMEMBER") // REMEMBER | UNDERSTAND | APPLY | ANALYZE | EVALUATE | CREATE
   aiGenerated       Boolean @default(false)
   reviewedByTeacher Boolean @default(false)
+  aiReviewStatus    String  @default("PENDING") // PENDING | APPROVED | NEEDS_REVIEW
+  aiReviewScore     Int?                          // 0-100 质量评分
+  aiReviewFeedback  String  @default("")          // AI 评审意见
+  aiReviewedAt      DateTime?                     // 评审时间
   createdById       String
 
   knowledgePoint KnowledgePoint @relation(fields: [knowledgePointId], references: [id])
@@ -139,6 +143,7 @@ model ExerciseSession {
   correctCount   Int     @default(0)
   score          Float   @default(0)
   weaknessData   String  @default("{}") // JSON: 薄弱点分析
+  knowledgePointIds String @default("[]") // JSON: 选中的知识点 ID 数组
 
   student User           @relation("ExerciseStudent", fields: [studentId], references: [id])
   subject Subject        @relation(fields: [subjectId], references: [id])

@@ -19,9 +19,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "请选择知识点" }, { status: 400 });
     }
 
-    // 获取知识点信息
-    const knowledgePoints = await prisma.knowledgePoint.findMany({
+    // 获取知识点信息（包括所有子知识点）
+    const selectedKPs = await prisma.knowledgePoint.findMany({
       where: { id: { in: knowledgePointIds } },
+      select: { id: true, name: true, description: true, difficultyLevel: true, subjectId: true },
+    });
+
+    // 递归获取子知识点
+    const getAllChildKPIds = async (parentIds: string[]): Promise<string[]> => {
+      const children = await prisma.knowledgePoint.findMany({
+        where: { parentId: { in: parentIds } },
+        select: { id: true },
+      });
+      if (children.length === 0) return [];
+      const childIds = children.map((c) => c.id);
+      return [...childIds, ...(await getAllChildKPIds(childIds))];
+    };
+
+    const childIds = await getAllChildKPIds(knowledgePointIds);
+    const allKPIds = [...knowledgePointIds, ...childIds];
+
+    const knowledgePoints = await prisma.knowledgePoint.findMany({
+      where: { id: { in: allKPIds } },
       select: { id: true, name: true, description: true, difficultyLevel: true, subjectId: true },
     });
 
@@ -62,7 +81,7 @@ export async function POST(request: NextRequest) {
       result.questions.map((q, i) =>
         prisma.question.create({
           data: {
-            knowledgePointId: knowledgePointIds[i % knowledgePointIds.length],
+            knowledgePointId: allKPIds[i % allKPIds.length],
             type: q.type || "MULTIPLE_CHOICE",
             content: q.content,
             options: JSON.stringify(q.options || []),
@@ -71,6 +90,7 @@ export async function POST(request: NextRequest) {
             bloomLevel: q.bloomLevel || "REMEMBER",
             aiGenerated: true,
             reviewedByTeacher: false,
+            aiReviewStatus: "PENDING",
             createdById: auth.userId,
           },
         })
@@ -86,12 +106,29 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // 自动 AI 评审（同步等待完成）
+    let reviewStats = null;
+    try {
+      const { aiReviewQuestions } = await import("@/lib/ai/review");
+      const reviewResult = await aiReviewQuestions(savedQuestions.map((q) => q.id));
+      reviewStats = reviewResult.stats;
+    } catch (reviewErr) {
+      console.error("AI auto-review failed (non-blocking):", reviewErr);
+    }
+
+    // 评审后重新查询最新数据
+    const questionIds = savedQuestions.map((q) => q.id);
+    const refreshedQuestions = await prisma.question.findMany({
+      where: { id: { in: questionIds } },
+    });
+
     return NextResponse.json({
-      questions: savedQuestions.map((q) => ({
+      questions: refreshedQuestions.map((q) => ({
         ...q,
         options: JSON.parse(q.options),
       })),
       raw: result,
+      reviewStats,
     });
   } catch (error: any) {
     console.error("Generate questions error:", error);

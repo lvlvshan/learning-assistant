@@ -55,7 +55,7 @@ export default function StudentProgress() {
               title="平均分"
               value={avgScore}
               suffix="分"
-              valueStyle={{ color: avgScore >= 90 ? "#52c41a" : "#faad14" }}
+              styles={{ content: { color: avgScore >= 90 ? "#52c41a" : "#faad14" } }}
             />
           </Card>
         </Col>
@@ -82,13 +82,15 @@ export default function StudentProgress() {
                   : 0
               }
               suffix="%"
-              valueStyle={{
-                color:
-                  completed.reduce((sum, s) => sum + s.totalQuestions, 0) > 0 &&
-                  completed.reduce((sum, s) => sum + s.correctCount, 0) /
-                    completed.reduce((sum, s) => sum + s.totalQuestions, 0) >= 0.9
-                    ? "#52c41a"
-                    : "#faad14",
+              styles={{
+                content: {
+                  color:
+                    completed.reduce((sum, s) => sum + s.totalQuestions, 0) > 0 &&
+                    completed.reduce((sum, s) => sum + s.correctCount, 0) /
+                      completed.reduce((sum, s) => sum + s.totalQuestions, 0) >= 0.9
+                      ? "#52c41a"
+                      : "#faad14",
+                },
               }}
             />
           </Card>

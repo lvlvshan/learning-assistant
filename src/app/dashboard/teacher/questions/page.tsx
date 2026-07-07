@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   Card, Table, Button, Select, Space, App, Tag, Modal,
-  Typography, Tooltip, Form, Input, Descriptions, Badge, Empty,
+  Typography, Tooltip, Form, Input, InputNumber, Descriptions, Badge, Empty,
 } from "antd";
 import {
   RobotOutlined, DeleteOutlined, EditOutlined, CheckCircleOutlined,
@@ -35,7 +35,7 @@ const typeColors: Record<string, string> = {
 };
 
 export default function TeacherQuestions() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [questions, setQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -48,7 +48,7 @@ export default function TeacherQuestions() {
   // 生成相关
   const [genModalOpen, setGenModalOpen] = useState(false);
   const [genKPs, setGenKPs] = useState<string[]>([]);
-  const [genCount, setGenCount] = useState(5);
+  const [genCount, setGenCount] = useState(20);
   const [generating, setGenerating] = useState(false);
 
   // 详情/编辑
@@ -75,7 +75,7 @@ export default function TeacherQuestions() {
       if (filterKP) params.set("knowledgePointId", filterKP);
       else if (filterSubject) params.set("subjectId", filterSubject);
       if (filterBloom) params.set("bloomLevel", filterBloom);
-      if (filterReviewed) params.set("reviewed", filterReviewed as string);
+      if (filterReviewed) params.set("aiReviewStatus", filterReviewed as string);
 
       const res = await apiClient.get(`/questions?${params.toString()}`);
       setQuestions(res.data.questions);
@@ -148,18 +148,23 @@ export default function TeacherQuestions() {
     }
   };
 
-  // 审核通过
-  const handleReview = async (id: string) => {
+  // 手动通过（教师复审）
+  const handleManualApprove = async (id: string) => {
     try {
-      await apiClient.put(`/questions/${id}`, { reviewedByTeacher: true });
+      await apiClient.put(`/questions/${id}`, {
+        reviewedByTeacher: true,
+        aiReviewStatus: "APPROVED",
+      });
       message.success("审核通过");
       fetchQuestions();
-    } catch { message.error("操作失败"); }
+    } catch {
+      message.error("操作失败");
+    }
   };
 
   // 删除
   const handleDelete = (id: string) => {
-    Modal.confirm({
+    modal.confirm({
       title: "确认删除",
       content: "删除后不可恢复",
       okText: "确认",
@@ -194,7 +199,8 @@ export default function TeacherQuestions() {
     try {
       await apiClient.put(`/questions/${editingQuestion.id}`, {
         ...values,
-        reviewedByTeacher: true,
+        reviewedByTeacher: false,
+        aiReviewStatus: "PENDING",
       });
       message.success("更新成功");
       setEditModalOpen(false);
@@ -235,8 +241,19 @@ export default function TeacherQuestions() {
       title: "Bloom 层次",
       dataIndex: "bloomLevel",
       key: "bloomLevel",
-      width: 80,
-      render: (level: string) => <Tag color={bloomColors[level]}>{getBloomLevelLabel(level)}</Tag>,
+      width: 100,
+      render: (level: string) => {
+        const levels = (level || "").split(",").map((l: string) => l.trim()).filter(Boolean);
+        return (
+          <span style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+            {levels.map((l: string, i: number) => (
+              <Tag key={i} color={bloomColors[l]} style={{ fontSize: 11 }}>
+                {getBloomLevelLabel(l)}
+              </Tag>
+            ))}
+          </span>
+        );
+      },
     },
     {
       title: "难度",
@@ -253,14 +270,14 @@ export default function TeacherQuestions() {
       render: (_: any, r: any) => r.knowledgePoint?.name || "-",
     },
     {
-      title: "状态",
-      key: "status",
-      width: 80,
-      render: (_: any, r: any) => (
-        r.reviewedByTeacher
-          ? <Tag color="green">已审核</Tag>
-          : <Tag color="orange">待审核</Tag>
-      ),
+      title: "评审状态",
+      key: "aiReview",
+      width: 90,
+      render: (_: any, r: any) => {
+        if (r.aiReviewStatus === "APPROVED") return <Tag color="green">已通过</Tag>;
+        if (r.aiReviewStatus === "NEEDS_REVIEW") return <Tooltip title={r.aiReviewFeedback || "AI 建议复核"}><Tag color="orange">需复核</Tag></Tooltip>;
+        return <Tag color="default">待评审</Tag>;
+      },
     },
     {
       title: "来源",
@@ -281,9 +298,9 @@ export default function TeacherQuestions() {
           <Tooltip title="编辑">
             <Button type="link" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
           </Tooltip>
-          {!record.reviewedByTeacher && (
+          {(record.aiReviewStatus === "PENDING" || record.aiReviewStatus === "NEEDS_REVIEW") && (
             <Tooltip title="审核通过">
-              <Button type="link" icon={<CheckCircleOutlined />} style={{ color: "green" }} onClick={() => handleReview(record.id)} />
+              <Button type="link" icon={<CheckCircleOutlined />} style={{ color: "green" }} onClick={() => handleManualApprove(record.id)} />
             </Tooltip>
           )}
           <Tooltip title="删除">
@@ -362,13 +379,14 @@ export default function TeacherQuestions() {
           />
           <Select
             allowClear
-            placeholder="审核状态"
+            placeholder="评审状态"
             style={{ width: 110 }}
             value={filterReviewed}
             onChange={(v) => setFilterReviewed(v)}
             options={[
-              { value: "false", label: "待审核" },
-              { value: "true", label: "已审核" },
+              { value: "PENDING", label: "待评审" },
+              { value: "APPROVED", label: "已通过" },
+              { value: "NEEDS_REVIEW", label: "需复核" },
             ]}
           />
           <Tooltip title="刷新">
@@ -423,14 +441,20 @@ export default function TeacherQuestions() {
           }
           notFoundContent={<Empty description="请先在知识点管理中添加知识点" />}
         />
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 8 }}>
           <Typography.Text>生成数量：</Typography.Text>
-          <Select
-            value={genCount}
-            onChange={(v) => setGenCount(v)}
-            options={[3, 5, 8, 10].map((n) => ({ value: n, label: `${n} 题` }))}
-            style={{ width: 100, marginLeft: 8 }}
-          />
+          <Space.Compact>
+            <InputNumber
+              min={1}
+              max={100}
+              value={genCount}
+              onChange={(v) => setGenCount(v || 20)}
+              style={{ width: 80, textAlign: "center" }}
+            />
+            <div style={{ display: "flex", alignItems: "center", padding: "0 10px", background: "#f5f5f5", border: "1px solid #d9d9d9", borderLeft: "none", borderRadius: "0 6px 6px 0", fontSize: 14, color: "#666" }}>
+              题
+            </div>
+          </Space.Compact>
         </div>
       </Modal>
 
@@ -439,11 +463,25 @@ export default function TeacherQuestions() {
         title="题目详情"
         open={detailModalOpen}
         onCancel={() => { setDetailModalOpen(false); setSelectedQuestion(null); }}
-        footer={<Button onClick={() => { setDetailModalOpen(false); setSelectedQuestion(null); }}>关闭</Button>}
+        footer={
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            {selectedQuestion && (selectedQuestion.aiReviewStatus === "PENDING" || selectedQuestion.aiReviewStatus === "NEEDS_REVIEW") && (
+              <Button type="primary" icon={<CheckCircleOutlined />} style={{ color: "#fff" }}
+                onClick={async () => {
+                  await handleManualApprove(selectedQuestion.id);
+                  setDetailModalOpen(false);
+                  setSelectedQuestion(null);
+                }}>
+                审核通过
+              </Button>
+            )}
+            <Button onClick={() => { setDetailModalOpen(false); setSelectedQuestion(null); }}>关闭</Button>
+          </div>
+        }
         width={700}
       >
         {selectedQuestion && (
-          <Descriptions column={2} bordered size="small">
+          <Descriptions column={2} bordered size="small" style={{ tableLayout: "fixed", width: "100%" }} styles={{ content: { whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" } }}>
             <Descriptions.Item label="题型" span={1}>
               <Tag color={typeColors[selectedQuestion.type]}>{getQuestionTypeLabel(selectedQuestion.type)}</Tag>
             </Descriptions.Item>
@@ -453,29 +491,49 @@ export default function TeacherQuestions() {
             <Descriptions.Item label="难度" span={1}>
               <Tag color={difficultyColors[selectedQuestion.difficulty]}>{getDifficultyLabel(selectedQuestion.difficulty)}</Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="状态" span={1}>
-              {selectedQuestion.reviewedByTeacher
-                ? <Tag color="green">已审核</Tag>
-                : <Tag color="orange">待审核</Tag>}
+            <Descriptions.Item label="评审状态" span={1}>
+              {selectedQuestion.aiReviewStatus === "APPROVED" ? (
+                <Tag color="green">已通过</Tag>
+              ) : selectedQuestion.aiReviewStatus === "NEEDS_REVIEW" ? (
+                <Tag color="orange">需复核</Tag>
+              ) : (
+                <Tag>待评审</Tag>
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="AI 评分" span={1}>
+              {selectedQuestion.aiReviewScore != null ? `${selectedQuestion.aiReviewScore}/100` : "-"}
+            </Descriptions.Item>
+            <Descriptions.Item label="来源" span={1}>
+              {selectedQuestion.aiGenerated ? <Tag>AI 生成</Tag> : <Tag color="blue">人工录入</Tag>}
             </Descriptions.Item>
             <Descriptions.Item label="知识点" span={2}>
-              {selectedQuestion.knowledgePoint?.name || "-"}
+              <span style={{ wordBreak: "break-word" }}>{selectedQuestion.knowledgePoint?.name || "-"}</span>
             </Descriptions.Item>
             <Descriptions.Item label="题目内容" span={2}>
-              <div style={{ whiteSpace: "pre-wrap", background: "#f5f5f5", padding: 12, borderRadius: 6 }}>
+              <div style={{ background: "#f5f5f5", padding: 12, borderRadius: 6, wordBreak: "break-word", overflowWrap: "break-word", maxWidth: "100%" }}>
                 {selectedQuestion.content}
               </div>
             </Descriptions.Item>
             {selectedQuestion.options?.length > 0 && (
               <Descriptions.Item label="选项" span={2}>
-                {(selectedQuestion.options as string[]).map((opt: string, i: number) => (
-                  <div key={i} style={{ padding: "2px 0" }}>{opt}</div>
-                ))}
+                <div>
+                  {(selectedQuestion.options as string[]).map((opt: string, i: number) => (
+                    <div key={i} style={{ padding: "2px 0" }}>{opt}</div>
+                  ))}
+                </div>
               </Descriptions.Item>
             )}
-            <Descriptions.Item label="正确答案" span={2}>
-              <Tag color="green">{selectedQuestion.correctAnswer}</Tag>
+            <Descriptions.Item label="正确答案" span={2} contentStyle={{ wordBreak: "break-all", overflowWrap: "break-word" }}>
+              <span style={{ display: "block", background: "#f6ffed", border: "1px solid #b7eb8f", color: "#52c41a", padding: "2px 8px", borderRadius: 4, wordBreak: "break-all", overflowWrap: "break-word", lineHeight: 1.8 }}>{selectedQuestion.correctAnswer}</span>
             </Descriptions.Item>
+            {selectedQuestion.aiReviewStatus === "NEEDS_REVIEW" && selectedQuestion.aiReviewFeedback && (
+              <Descriptions.Item label="AI 评审意见" span={2}>
+                <div style={{ background: "#fff7e6", border: "1px solid #ffd591", padding: 12, borderRadius: 6 }}>
+                  <Typography.Text strong>评审意见：</Typography.Text>
+                  <p style={{ margin: "4px 0" }}>{selectedQuestion.aiReviewFeedback}</p>
+                </div>
+              </Descriptions.Item>
+            )}
           </Descriptions>
         )}
       </Modal>

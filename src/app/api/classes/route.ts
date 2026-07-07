@@ -3,10 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { getAuthFromRequest, unauthorizedResponse, forbiddenResponse } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
-  const auth = getAuthFromRequest(request);
-  if (!auth) return unauthorizedResponse();
-  if (auth.role !== "ADMIN" && auth.role !== "TEACHER") return forbiddenResponse();
-
   const classes = await prisma.class.findMany({
     include: {
       _count: { select: { students: true } },

@@ -73,23 +73,23 @@ export default function TeacherDashboard() {
               value={data.summary.avgScore}
               suffix="分"
               prefix={<TrophyOutlined />}
-              valueStyle={{ color: data.summary.avgScore >= 80 ? "#52c41a" : "#faad14" }}
+              styles={{ content: { color: data.summary.avgScore >= 80 ? "#52c41a" : "#faad14" } }}
             />
           </Card>
         </Col>
         <Col xs={12} sm={8} lg={4}>
           <Card size="small">
-            <Statistic title="优秀(≥90分)" value={data.summary.excellentCount} prefix={<CheckCircleOutlined />} valueStyle={{ color: "#52c41a" }} />
+            <Statistic title="优秀(≥90分)" value={data.summary.excellentCount} prefix={<CheckCircleOutlined />} styles={{ content: { color: "#52c41a" } }} />
           </Card>
         </Col>
         <Col xs={12} sm={8} lg={4}>
           <Card size="small">
-            <Statistic title="及格(60-89)" value={data.summary.passCount} prefix={<RiseOutlined />} valueStyle={{ color: "#1677ff" }} />
+            <Statistic title="及格(60-89)" value={data.summary.passCount} prefix={<RiseOutlined />} styles={{ content: { color: "#1677ff" } }} />
           </Card>
         </Col>
         <Col xs={12} sm={8} lg={4}>
           <Card size="small">
-            <Statistic title="不及格(<60)" value={data.summary.failCount} prefix={<CloseCircleOutlined />} valueStyle={{ color: "#ff4d4f" }} />
+            <Statistic title="不及格(<60)" value={data.summary.failCount} prefix={<CloseCircleOutlined />} styles={{ content: { color: "#ff4d4f" } }} />
           </Card>
         </Col>
       </Row>

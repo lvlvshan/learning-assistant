@@ -41,7 +41,7 @@ export async function PUT(
 
   try {
     const { id } = await context.params;
-    const { knowledgePointId, type, content, options, correctAnswer, difficulty, bloomLevel, reviewedByTeacher } = await request.json();
+    const { knowledgePointId, type, content, options, correctAnswer, difficulty, bloomLevel, reviewedByTeacher, aiReviewStatus } = await request.json();
 
     const data: any = {};
     if (knowledgePointId !== undefined) data.knowledgePointId = knowledgePointId;
@@ -52,6 +52,7 @@ export async function PUT(
     if (difficulty !== undefined) data.difficulty = difficulty;
     if (bloomLevel !== undefined) data.bloomLevel = bloomLevel;
     if (reviewedByTeacher !== undefined) data.reviewedByTeacher = reviewedByTeacher;
+    if (aiReviewStatus !== undefined) data.aiReviewStatus = aiReviewStatus;
 
     const question = await prisma.question.update({
       where: { id },

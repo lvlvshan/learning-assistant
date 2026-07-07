@@ -6,7 +6,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import apiClient from "@/lib/api";
 
 export default function ClassManagement() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [classes, setClasses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -45,7 +45,7 @@ export default function ClassManagement() {
   };
 
   const handleDelete = async (id: string) => {
-    Modal.confirm({
+    modal.confirm({
       title: "确认删除",
       content: "删除班级不会删除关联的学生，但学生将无班级归属",
       okText: "确认",

@@ -24,6 +24,8 @@ export async function POST(request: NextRequest) {
     let fileType = "TEXT";
     if ([".pdf"].includes(ext)) fileType = "PDF";
     else if ([".ppt", ".pptx", ".pptm"].includes(ext)) fileType = "PPT";
+    else if ([".doc", ".docx"].includes(ext)) fileType = "DOC";
+    else if ([".xls", ".xlsx"].includes(ext)) fileType = "XLSX";
     else if ([".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"].includes(ext)) fileType = "IMAGE";
     else if ([".mp4", ".avi", ".mov", ".wmv", ".flv"].includes(ext)) fileType = "VIDEO";
 

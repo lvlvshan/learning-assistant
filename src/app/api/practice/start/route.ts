@@ -11,25 +11,29 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { subjectId, count = 10 } = await request.json();
+    const { subjectId, count = 10, knowledgePointIds: rawKpIds } = await request.json();
     if (!subjectId) {
       return NextResponse.json({ error: "请选择科目" }, { status: 400 });
     }
 
-    // 从题库中选取已审核的题目
-    const kpIds = await prisma.knowledgePoint.findMany({
-      where: { subjectId },
-      select: { id: true },
+    // 确定知识点范围：若传了 knowledgePointIds 则限定，否则查科目下全部
+    const kpWhere = (rawKpIds?.length > 0)
+      ? { id: { in: rawKpIds as string[] } }
+      : { subjectId };
+
+    const kps = await prisma.knowledgePoint.findMany({
+      where: kpWhere,
+      select: { id: true, name: true },
     });
 
-    if (kpIds.length === 0) {
+    if (kps.length === 0) {
       return NextResponse.json({ error: "该科目暂无知识点" }, { status: 400 });
     }
 
     const questions = await prisma.question.findMany({
       where: {
-        knowledgePointId: { in: kpIds.map(kp => kp.id) },
-        reviewedByTeacher: true,
+        knowledgePointId: { in: kps.map(kp => kp.id) },
+        aiReviewStatus: "APPROVED",
       },
       orderBy: { createdAt: "desc" },
     });
@@ -50,6 +54,7 @@ export async function POST(request: NextRequest) {
         totalQuestions: selectedCount,
         correctCount: 0,
         score: 0,
+        knowledgePointIds: JSON.stringify(kps.map(kp => kp.id)),
       },
     });
 
@@ -61,6 +66,7 @@ export async function POST(request: NextRequest) {
         startedAt: session.startedAt,
       },
       questions: selectedCount,
+      selectedKnowledgePoints: kps.map(kp => kp.name),
     });
   } catch (error) {
     console.error("Start practice error:", error);

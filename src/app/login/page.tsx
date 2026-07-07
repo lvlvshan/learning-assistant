@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Form, Input, Button, message } from "antd";
+import { Form, Input, Button, App } from "antd";
 import { UserOutlined, LockOutlined } from "@ant-design/icons";
 import apiClient from "@/lib/api";
 import { useUserStore } from "@/stores/userStore";
@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { setUser, setToken } = useUserStore();
+  const { message } = App.useApp();
 
   const onFinish = async (values: { username: string; password: string }) => {
     setLoading(true);
@@ -45,18 +46,19 @@ export default function LoginPage() {
           onFinish={onFinish}
           layout="vertical"
           size="large"
+          style={{ width: "100%" }}
         >
           <Form.Item
             name="username"
             rules={[{ required: true, message: "请输入用户名" }]}
           >
-            <Input prefix={<UserOutlined />} placeholder="用户名" />
+            <Input prefix={<UserOutlined />} placeholder="用户名" style={{ width: "100%" }} />
           </Form.Item>
           <Form.Item
             name="password"
             rules={[{ required: true, message: "请输入密码" }]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="密码" />
+            <Input.Password prefix={<LockOutlined />} placeholder="密码" style={{ width: "100%" }} />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" block loading={loading}>
@@ -64,6 +66,16 @@ export default function LoginPage() {
             </Button>
           </Form.Item>
         </Form>
+        <div style={{ textAlign: "center" }}>
+          还没有账号？
+          <Button
+            type="link"
+            onClick={() => router.push("/register")}
+            style={{ padding: 0 }}
+          >
+            立即注册
+          </Button>
+        </div>
       </div>
     </div>
   );

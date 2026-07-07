@@ -103,11 +103,20 @@ export async function POST(
             bloomLevel: q.bloomLevel || "REMEMBER",
             aiGenerated: true,
             reviewedByTeacher: false,
+            aiReviewStatus: "PENDING",
             createdById: auth.userId,
           },
         })
       )
     );
+
+    // 自动 AI 评审（同步等待完成）
+    try {
+      const { aiReviewQuestions } = await import("@/lib/ai/review");
+      await aiReviewQuestions(savedQuestions.map((q) => q.id));
+    } catch (reviewErr) {
+      console.error("AI auto-review failed (non-blocking):", reviewErr);
+    }
 
     // 创建新的练习会话（基于薄弱点）
     const newSession = await prisma.exerciseSession.create({

@@ -75,7 +75,7 @@ export default function StudentDashboard() {
               value={avgScore}
               suffix="分"
               prefix={<TrophyOutlined />}
-              valueStyle={{ color: avgScore >= 90 ? "#52c41a" : avgScore >= 60 ? "#faad14" : "#888" }}
+              styles={{ content: { color: avgScore >= 90 ? "#52c41a" : avgScore >= 60 ? "#faad14" : "#888" } }}
             />
           </Card>
         </Col>
@@ -90,7 +90,7 @@ export default function StudentDashboard() {
               title="正确率"
               value={correctRate}
               suffix="%"
-              valueStyle={{ color: correctRate >= 90 ? "#52c41a" : correctRate >= 60 ? "#faad14" : "#888" }}
+              styles={{ content: { color: correctRate >= 90 ? "#52c41a" : correctRate >= 60 ? "#faad14" : "#888" } }}
             />
           </Card>
         </Col>

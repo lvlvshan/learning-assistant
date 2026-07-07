@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, Form, Input, InputNumber, Select, Button, Switch, App, Alert, Typography, Space, Tag } from "antd";
+import { Card, Form, Input, InputNumber, Select, Button, Switch, App, Alert, Typography, Space, Tag, Divider } from "antd";
 import apiClient from "@/lib/api";
 
 interface AIConfig {
@@ -14,6 +14,11 @@ interface AIConfig {
   enabled: boolean;
 }
 
+interface MinerUConfig {
+  token: string;
+  enabled: boolean;
+}
+
 export default function AISettings() {
   const { message } = App.useApp();
   const [form] = Form.useForm();
@@ -22,9 +27,51 @@ export default function AISettings() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
 
+  // MinerU 配置状态
+  const [mineruForm] = Form.useForm();
+  const [mineruConfig, setMineruConfig] = useState<MinerUConfig | null>(null);
+  const [mineruLoading, setMineruLoading] = useState(false);
+  const [mineruSaving, setMineruSaving] = useState(false);
+
   useEffect(() => {
     fetchConfig();
+    fetchMineruConfig();
   }, []);
+
+  const fetchMineruConfig = async () => {
+    setMineruLoading(true);
+    try {
+      const res = await apiClient.get("/admin/settings?key=mineru-config");
+      if (res.data.config) {
+        setMineruConfig(res.data.config.value);
+        mineruForm.setFieldsValue(res.data.config.value);
+      } else {
+        const defaultConfig: MinerUConfig = { token: "", enabled: false };
+        setMineruConfig(defaultConfig);
+        mineruForm.setFieldsValue(defaultConfig);
+      }
+    } finally {
+      setMineruLoading(false);
+    }
+  };
+
+  const handleMineruSave = async () => {
+    const values = await mineruForm.validateFields();
+    setMineruSaving(true);
+    try {
+      await apiClient.put("/admin/settings", {
+        key: "mineru-config",
+        value: values,
+        description: "MinerU 文档解析配置",
+      });
+      setMineruConfig(values);
+      message.success("MinerU 配置保存成功");
+    } catch (error: any) {
+      message.error(error.response?.data?.error || "保存失败");
+    } finally {
+      setMineruSaving(false);
+    }
+  };
 
   const fetchConfig = async () => {
     setLoading(true);
@@ -109,7 +156,7 @@ export default function AISettings() {
 
       <Card title="AI 服务配置" loading={loading}>
         <Alert
-          message="AI 提供商由管理员自行配置，系统不绑定任何特定厂商"
+          title="AI 提供商由管理员自行配置，系统不绑定任何特定厂商"
           description="推荐使用支持 OpenAI 兼容接口的模型。学校局域网可部署 Ollama + DeepSeek / Qwen2.5 等本地模型。"
           type="info"
           showIcon
@@ -186,6 +233,62 @@ export default function AISettings() {
               )}
               <br />
               提供商：{config.provider} | 模型：{config.model} | 端点：{config.endpoint || "未配置"}
+            </Typography.Text>
+          </div>
+        )}
+      </Card>
+
+      <Divider />
+
+      <Card title="MinerU 文档解析配置" loading={mineruLoading} style={{ marginTop: 24 }}>
+        <Alert
+          title="MinerU 提供高精度文档解析能力（PDF/图片/PPT/Word/Excel → Markdown）"
+          description="在上海人工智能实验室 mineru.net 注册并创建 Token 后填入此处。启用后，AI 分析资料时将优先使用 MinerU 提取文本，支持 PDF、图片等格式。"
+          type="info"
+          showIcon
+          style={{ marginBottom: 24 }}
+        />
+
+        <Form
+          form={mineruForm}
+          layout="vertical"
+          style={{ maxWidth: 600 }}
+          onFinish={handleMineruSave}
+        >
+          <Form.Item label="启用 MinerU 文档解析" name="enabled" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+
+          <Form.Item
+            label="API Token"
+            name="token"
+            rules={[{ required: false }]}
+            extra="从 mineru.net 的「API 管理」页面创建。启用但留空时，系统将继续使用内置解析方案。"
+          >
+            <Input.Password placeholder="mineru_xxxxxxxxxxxxxxxx" />
+          </Form.Item>
+
+          <Space>
+            <Button type="primary" htmlType="submit" loading={mineruSaving}>
+              保存配置
+            </Button>
+          </Space>
+        </Form>
+
+        {mineruConfig && (
+          <div style={{ marginTop: 24, padding: 16, background: "#f5f5f5", borderRadius: 8 }}>
+            <Typography.Text type="secondary">
+              MinerU 状态：
+              {mineruConfig.enabled && mineruConfig.token ? (
+                <Tag color="green" style={{ marginLeft: 8 }}>已启用</Tag>
+              ) : mineruConfig.enabled && !mineruConfig.token ? (
+                <Tag color="orange" style={{ marginLeft: 8 }}>已启用但未配置 Token</Tag>
+              ) : (
+                <Tag style={{ marginLeft: 8 }}>未启用</Tag>
+              )}
+              <br />
+              {mineruConfig.token ? "Token 已配置" : "Token 未配置"}
+              {mineruConfig.enabled ? " | 启用状态下 AI 分析将优先使用 MinerU" : " | 禁用状态下使用内置解析方案"}
             </Typography.Text>
           </div>
         )}

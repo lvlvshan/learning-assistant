@@ -19,7 +19,7 @@ interface Student {
 }
 
 export default function TeacherStudents() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -61,7 +61,7 @@ export default function TeacherStudents() {
 
   // 删除学生
   const handleDelete = (student: Student) => {
-    Modal.confirm({
+    modal.confirm({
       title: `确认删除学生「${student.name}」`,
       content: `删除后该学生的所有数据（练习记录、答题记录等）将被永久删除，不可恢复。`,
       okText: "确认删除",

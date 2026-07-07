@@ -36,7 +36,7 @@ interface KnowledgePoint {
 }
 
 export default function TeacherKnowledgePoints() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [subjects, setSubjects] = useState<any[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>();
   const [treeData, setTreeData] = useState<DataNode[]>([]);
@@ -154,7 +154,7 @@ export default function TeacherKnowledgePoints() {
 
   // 删除
   const handleDelete = async (nodeKey: string) => {
-    Modal.confirm({
+    modal.confirm({
       title: "确认删除",
       content: "删除知识点后关联的题目将失去关联",
       okText: "确认",

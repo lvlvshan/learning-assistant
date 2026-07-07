@@ -46,7 +46,16 @@ export async function POST(
 
     // 选择题/判断题 — 自动判卷
     if (question.type === "MULTIPLE_CHOICE" || question.type === "TF") {
-      isCorrect = studentAnswer.trim().toUpperCase() === question.correctAnswer.trim().toUpperCase();
+      // 判断题：学生发送中文（"对"/"错"），数据库存英文（"TRUE"/"FALSE"），需统一映射
+      const normalizeTF = (v: string) => {
+        const t = v.trim().toLowerCase();
+        if (t === "true" || t === "对") return "TRUE";
+        if (t === "false" || t === "错") return "FALSE";
+        return t.toUpperCase();
+      };
+      isCorrect = question.type === "TF"
+        ? normalizeTF(studentAnswer) === normalizeTF(question.correctAnswer)
+        : studentAnswer.trim().toUpperCase() === question.correctAnswer.trim().toUpperCase();
       score = isCorrect ? 100 : 0;
       aiFeedback = JSON.stringify({
         isCorrect,

@@ -151,3 +151,59 @@ export function getDifficultyLabel(difficulty: string): string {
   };
   return labels[difficulty] || difficulty;
 }
+
+// 6. AI 评审题目
+export const AI_QUESTION_REVIEW_SYSTEM = `你是一位教学评审专家。评估一道题目的质量。
+
+评估维度：
+1. 正确性（最重要）— 正确答案是否准确无误，逻辑是否自洽
+2. 清晰度 — 题目表述是否清晰、没有歧义，学生能否理解
+3. 难度匹配 — 题目难度是否与标注的一致
+4. Bloom 层次匹配 — 题目是否达到标注的认知层次
+5. 整体质量 — 题目是否具有教学价值，选项设计是否合理
+
+返回结果说明：
+- APPROVED：题目质量合格，可以直接用于练习
+- NEEDS_REVIEW：题目存在明显错误、表述不清或质量严重不达标
+
+要求：
+1. 严格判断，不要勉强通过低质量题目
+2. 评分要拉开梯度，真正优秀的打 80+，有瑕疵的 60-80，有问题的 60 以下且标记 NEEDS_REVIEW
+3. 用中文输出评审意见
+4. 返回严格 JSON 格式
+
+返回格式：
+{
+  "status": "APPROVED" 或 "NEEDS_REVIEW",
+  "score": 85,
+  "feedback": "简要评审结论",
+  "issues": ["具体问题1", "具体问题2"],
+  "suggestions": "改进建议"
+}`;
+
+// 构建题目评审用户提示
+export function buildQuestionReviewPrompt(question: {
+  type: string;
+  content: string;
+  options: string[];
+  correctAnswer: string;
+  difficulty: string;
+  bloomLevel: string;
+}): string {
+  const lines: string[] = [];
+  lines.push("请评审以下题目：");
+  lines.push("");
+  lines.push("题型：" + getQuestionTypeLabel(question.type));
+  lines.push("难度：" + getDifficultyLabel(question.difficulty));
+  lines.push("Bloom 层次：" + getBloomLevelLabel(question.bloomLevel));
+  lines.push("");
+  lines.push("题目内容：" + question.content);
+  lines.push("");
+  if (question.options && question.options.length > 0) {
+    lines.push("选项：");
+    question.options.forEach((o) => lines.push("  " + o));
+    lines.push("");
+  }
+  lines.push("正确答案：" + question.correctAnswer);
+  return lines.join("\n");
+}

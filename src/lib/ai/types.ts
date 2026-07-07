@@ -1,4 +1,15 @@
-// AI 提供商配置
+// ─── MinerU 配置 ─────────────────────────────────────────────
+
+/** MinerU 精准解析 API 配置 */
+export interface MinerUConfig {
+  /** 从 mineru.net API 管理页面申请的 Token */
+  token: string;
+  /** 是否启用 MinerU 文档解析 */
+  enabled: boolean;
+}
+
+// ─── AI 提供商配置 ─────────────────────────────────────────────
+
 export interface AIProviderConfig {
   provider: "openai-compatible" | "ollama" | "custom";
   endpoint: string;
@@ -71,4 +82,13 @@ export interface SessionAnalysisResult {
   strongPoints: string[];
   suggestions: string;
   nextRoundFocus: string[];
+}
+
+// AI 评审结果
+export interface QuestionReviewResult {
+  status: "APPROVED" | "NEEDS_REVIEW";
+  score: number;        // 0-100 质量评分
+  feedback: string;     // 总体评审意见
+  issues: string[];     // 发现的问题
+  suggestions: string;  // 改进建议
 }

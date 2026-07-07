@@ -31,17 +31,21 @@ export async function GET(
   }
 
   // 获取该练习关联的题目
-  // 从已提交的答案反推，或者直接关联题目
-  // 简化方案：获取该科目已审核的题目
+  // 优先使用会话中存储的知识点 IDs，否则查科目下全部
+  const sessionKpIds: string[] = JSON.parse(session.knowledgePointIds || "[]");
+  const kpWhere = sessionKpIds.length > 0
+    ? { id: { in: sessionKpIds } }
+    : { subjectId: session.subjectId };
+
   const kpIds = await prisma.knowledgePoint.findMany({
-    where: { subjectId: session.subjectId },
+    where: kpWhere,
     select: { id: true },
   });
 
   const questions = await prisma.question.findMany({
     where: {
       knowledgePointId: { in: kpIds.map(kp => kp.id) },
-      reviewedByTeacher: true,
+      aiReviewStatus: "APPROVED",
     },
     orderBy: { createdAt: "desc" },
     take: session.totalQuestions,
