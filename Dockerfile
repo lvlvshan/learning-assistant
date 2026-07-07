@@ -46,9 +46,9 @@ RUN groupadd --system --gid 1001 nodejs && \
 # ─── 数据库（构建时已创建好） ──────────────────────────
 COPY --from=builder /app/prisma/dev.db /app/prisma/dev.db
 
-# ─── Prisma 运行时（仅客户端，无需 CLI） ───────────────
-COPY --from=builder /app/node_modules/.prisma/client ./node_modules/.prisma/client
-COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+# ─── Prisma 运行时 ────────────────────────────────────
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # ─── Next.js standalone 产物 ────────────────────────────
 COPY --from=builder /app/.next/standalone ./
