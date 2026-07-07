@@ -47,6 +47,8 @@ RUN groupadd --system --gid 1001 nodejs && \
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma/client ./node_modules/.prisma/client
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 
 # ─── Next.js standalone 产物 ────────────────────────────
 COPY --from=builder /app/.next/standalone ./
@@ -65,6 +67,7 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD curl -f http://localhost:3001/login || exit 1
 
 CMD ["sh", "-c", "\
+  node_modules/.bin/prisma db push --skip-generate 2>/dev/null && \
   node ./prisma/seed.js 2>/dev/null; \
   exec node server.js \
 "]
