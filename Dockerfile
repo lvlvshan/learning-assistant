@@ -1,7 +1,6 @@
 # ============================================================
 # Dockerfile — learning-assistant (linux/amd64)
 # Next.js 16 + Prisma + SQLite + Python3 (PPTX 提取)
-# 两个阶段均使用 Debian（node:20-slim），避免 musl/OpenSSL 兼容问题
 # ============================================================
 
 # ─── 阶段1: 构建 ──────────────────────────────────────────────
@@ -17,13 +16,14 @@ RUN npm ci
 
 COPY . .
 
-# Prisma 生成（生成 glibc 版引擎，匹配 Debian runner）
+# Prisma：生成客户端 → 创建数据库 → 填充种子数据
 RUN npx prisma generate
-
-# 编译 seed.ts → seed.js
+RUN npx prisma db push --skip-generate
 RUN npx --yes esbuild prisma/seed.ts --bundle --platform=node \
   --external:@prisma/client --external:bcryptjs --outfile=prisma/seed.js
+RUN node prisma/seed.js
 
+# Next.js 构建（standalone 模式）
 RUN npm run build
 
 # ─── 阶段2: 运行 ──────────────────────────────────────────────
@@ -43,12 +43,12 @@ ENV DATABASE_URL="file:/app/prisma/dev.db"
 RUN groupadd --system --gid 1001 nodejs && \
     useradd --system --uid 1001 --gid nodejs nextjs
 
-# ─── Prisma 相关文件 ────────────────────────────────────
-COPY --from=builder /app/prisma ./prisma
+# ─── 数据库（构建时已创建好） ──────────────────────────
+COPY --from=builder /app/prisma/dev.db /app/prisma/dev.db
+
+# ─── Prisma 运行时（仅客户端，无需 CLI） ───────────────
 COPY --from=builder /app/node_modules/.prisma/client ./node_modules/.prisma/client
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 
 # ─── Next.js standalone 产物 ────────────────────────────
 COPY --from=builder /app/.next/standalone ./
@@ -66,8 +66,4 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD curl -f http://localhost:3001/login || exit 1
 
-CMD ["sh", "-c", "\
-  node node_modules/prisma/build/index.js db push --skip-generate --schema=./prisma/schema.prisma && \
-  node ./prisma/seed.js; \
-  exec node server.js \
-"]
+CMD ["node", "server.js"]
