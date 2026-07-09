@@ -7,6 +7,7 @@
 FROM node:20-slim AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
+    libsqlite3-dev \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
