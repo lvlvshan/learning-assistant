@@ -50,6 +50,10 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/scripts ./scripts
 
+# ─── Prisma 运行时客户端（standalone 不包含） ──────────────
+COPY --from=builder /app/node_modules/.prisma/client ./node_modules/.prisma/client
+COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+
 # ─── 数据库（standalone 之后复制，避免被覆盖） ──────────────
 RUN mkdir -p /app/prisma
 COPY --from=builder /app/prisma/dev.db ./prisma/dev.db
