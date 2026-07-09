@@ -4,7 +4,8 @@ set -e
 echo "Initializing database..."
 
 # 运行数据库迁移（构建阶段已生成 Prisma 客户端）
-HOME=/tmp npx prisma db push --skip-generate
+# 直接调用 node 避免 npx 依赖 .bin 可执行文件
+node /app/node_modules/prisma/build/main.js db push --skip-generate
 
 echo "Seeding database..."
 if [ -f /app/prisma/seed.js ]; then
