@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+ENV DATABASE_URL="file:./dev.db"
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
