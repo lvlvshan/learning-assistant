@@ -17,12 +17,10 @@ RUN npm ci
 
 COPY . .
 
-# Prisma：生成客户端 → 创建数据库 → 填充种子数据
+# Prisma：生成客户端（不预创建数据库，运行时自动创建）
 RUN npx prisma generate
-RUN npx prisma db push --skip-generate
 RUN npx --yes esbuild prisma/seed.ts --bundle --platform=node \
   --external:@prisma/client --external:bcryptjs --outfile=prisma/seed.js
-RUN node prisma/seed.js
 
 # Next.js 构建（standalone 模式）
 RUN npm run build
@@ -51,13 +49,10 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/scripts ./scripts
 
-# ─── Prisma 运行时客户端（standalone 不包含） ──────────────
-COPY --from=builder /app/node_modules/.prisma/client ./node_modules/.prisma/client
-COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
-
-# ─── 数据库（构建时已创建好，standalone 之后复制避免被覆盖） ──
-RUN mkdir -p /app/prisma
-COPY --from=builder /app/prisma/dev.db ./prisma/dev.db
+# ─── Prisma 运行时（standalone 之后复制，避免被覆盖） ──────
+COPY --from=builder /app/prisma/schema.prisma ./prisma/schema.prisma
+COPY --from=builder /app/prisma/seed.js ./prisma/seed.js
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 # ─── 入口脚本：启动时自动创建表结构 + 种子数据 ─────
 COPY Dockerfile-entrypoint.sh /docker-entrypoint.sh
