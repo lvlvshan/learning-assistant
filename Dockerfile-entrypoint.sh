@@ -2,8 +2,9 @@
 set -e
 
 echo "Initializing database..."
-npx prisma generate
-npx prisma db push --skip-generate
+
+# 运行数据库迁移（构建阶段已生成 Prisma 客户端 + CLI）
+node /app/node_modules/prisma/build/main.js db push --skip-generate
 
 echo "Seeding database..."
 if [ -f /app/prisma/seed.js ]; then

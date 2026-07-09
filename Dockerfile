@@ -43,9 +43,10 @@ RUN groupadd --system --gid 1001 nodejs && \
     useradd --system --uid 1001 --gid nodejs nextjs
 
 # ─── Prisma 运行时（standalone 已包含 .prisma/@prisma） ──
-# 额外复制 schema + seed 用于运行时 db push + seed
+# 额外复制 schema + seed + CLI 用于运行时 db push
 COPY --from=builder /app/prisma/schema.prisma ./prisma/schema.prisma
-COPY --from=builder /app/prisma/seed.js ./seed.js
+COPY --from=builder /app/prisma/seed.js ./prisma/seed.js
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 # ─── Next.js standalone 产物 ────────────────────────────
 COPY --from=builder /app/.next/standalone ./
@@ -57,8 +58,8 @@ COPY --from=builder /app/scripts ./scripts
 COPY Dockerfile-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-RUN mkdir -p /app/public/uploads && \
-    chown -R nextjs:nodejs /app
+RUN mkdir -p /home/nextjs/.npm /app/public/uploads && \
+    chown -R nextjs:nodejs /app /home/nextjs
 
 USER nextjs
 
