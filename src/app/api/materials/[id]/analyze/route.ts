@@ -131,7 +131,10 @@ export async function POST(
   }
 
   const { id } = await context.params;
-  const material = await prisma.learningMaterial.findUnique({ where: { id } });
+  const material = await prisma.learningMaterial.findUnique({
+    where: { id },
+    include: { subject: true, author: true },
+  });
   if (!material) {
     return NextResponse.json({ error: "资料不存在" }, { status: 404 });
   }
@@ -144,30 +147,57 @@ export async function POST(
 
   const targetRootId = body?.rootId;
 
-  // 确定目标节点：使用指定 nodeId 或按资料标题查重/新建根节点
-  let rootKP: any;
+  // 确定目标节点：使用指定 nodeId 或按科目创建/复用根节点 + 资料文件节点
+  let saveToNodeId: string;
+  let subjectRoot: any;
+  let fileNode: any;
+
   if (targetRootId) {
-    rootKP = await prisma.knowledgePoint.findUnique({ where: { id: targetRootId } });
-    if (!rootKP) {
+    // 用户选择了特定节点 → 合并到该节点
+    const selectedNode = await prisma.knowledgePoint.findUnique({ where: { id: targetRootId } });
+    if (!selectedNode) {
       return NextResponse.json({ error: "指定的节点无效" }, { status: 400 });
     }
+    saveToNodeId = targetRootId;
   } else {
-    const existingRoot = await prisma.knowledgePoint.findFirst({
-      where: { name: material.title, subjectId: material.subjectId, parentId: null },
+    // 未选择节点 → 按科目创建/复用根节点，再创建资料文件作为一级子节点
+    const subjectName = material.subject?.name || "未分类";
+
+    // 查找或创建科目根节点
+    subjectRoot = await prisma.knowledgePoint.findFirst({
+      where: { name: subjectName, parentId: null, subjectId: material.subjectId },
     });
-    if (existingRoot) {
-      rootKP = existingRoot;
-    } else {
-      rootKP = await prisma.knowledgePoint.create({
+    if (!subjectRoot) {
+      subjectRoot = await prisma.knowledgePoint.create({
         data: {
-          name: material.title,
-          description: `来自资料「${material.title}」的知识点`,
+          name: subjectName,
+          description: `${material.subjectId} 科目的根节点`,
           subjectId: material.subjectId,
           parentId: null,
           difficultyLevel: "BASIC",
           orderIndex: 0,
         },
       });
+    }
+
+    // 查找或创建资料文件节点（以资料标题命名）
+    fileNode = await prisma.knowledgePoint.findFirst({
+      where: { name: material.title, parentId: subjectRoot.id, subjectId: material.subjectId },
+    });
+    if (fileNode) {
+      saveToNodeId = fileNode.id;
+    } else {
+      const newFileNode = await prisma.knowledgePoint.create({
+        data: {
+          name: material.title,
+          description: `来自资料「${material.title}」`,
+          subjectId: material.subjectId,
+          parentId: subjectRoot.id,
+          difficultyLevel: "BASIC",
+          orderIndex: 0,
+        },
+      });
+      saveToNodeId = newFileNode.id;
     }
   }
 
@@ -185,11 +215,33 @@ export async function POST(
 
     const savedPoints = await saveKnowledgePoints(
       result.knowledgePoints,
-      rootKP.id,
+      saveToNodeId,
       material.subjectId,
     );
 
-    const allPoints = [{ ...rootKP, children: savedPoints }];
+    // 返回时构建层级：科目根节点 → 资料文件节点 → AI 提取的知识点
+    let allPoints: any[];
+    if (targetRootId) {
+      // 用户选择了特定节点 → 直接返回合并结果
+      const targetNode = await prisma.knowledgePoint.findUnique({ where: { id: targetRootId } });
+      allPoints = [{ ...targetNode, children: savedPoints }];
+    } else {
+      const subjectName = material.subject?.name || "未分类";
+      const fileNode = await prisma.knowledgePoint.findFirst({
+        where: { name: material.title, parentId: subjectRoot!.id, subjectId: material.subjectId },
+      });
+      allPoints = [
+        {
+          ...subjectRoot!,
+          children: [
+            {
+              ...(fileNode ? fileNode : { id: saveToNodeId, name: material.title, description: `来自资料「${material.title}」`, difficultyLevel: "BASIC" }),
+              children: savedPoints,
+            },
+          ],
+        },
+      ];
+    }
 
     await prisma.aIGenerationLog.create({
       data: {
