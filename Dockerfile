@@ -56,6 +56,9 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/prisma/schema.prisma ./prisma/schema.prisma
 COPY --from=builder /app/prisma/seed.js ./prisma/seed.js
 
+# ─── 重新生成 Linux 平台 Prisma 客户端（覆盖 Windows 二进制文件） ──
+RUN DATABASE_URL="file:/app/prisma/dev.db" node node_modules/prisma/build/index.js generate
+
 # ─── 入口脚本：启动时创建数据库 + 种子数据 ──────────────
 COPY Dockerfile-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
