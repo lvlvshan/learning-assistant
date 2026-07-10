@@ -94,7 +94,17 @@ export default function TeacherMaterials() {
   const fetchTreeNodeList = async (subjectId: string) => {
     try {
       const res = await apiClient.get(`/knowledge-points?tree=true&subjectId=${subjectId}`);
-      setTreeNodes(res.data.knowledgePoints || []);
+      const points = res.data.knowledgePoints || [];
+      // 确保每个节点都有 key 属性（Ant Design Tree 要求）
+      const transformTree = (nodes: any[]): DataNode[] =>
+        nodes.map((n) => ({
+          key: n.id,
+          name: n.name,
+          description: n.description,
+          difficultyLevel: n.difficultyLevel,
+          children: n.children ? transformTree(n.children) : [],
+        }));
+      setTreeNodes(transformTree(points));
     } catch {}
   };
 
@@ -446,7 +456,7 @@ export default function TeacherMaterials() {
           showIcon
           defaultExpandAll
           treeData={treeNodes}
-          onSelect={(selectedKeys) => setSelectedNodeId(selectedKeys[0] as string)}
+          onSelect={(selectedKeys) => setSelectedNodeId(selectedKeys?.[0] as string)}
           titleRender={(node: any) => (
             <Space size={4}>
               <Tag color={difficultyColors[node.difficultyLevel]} style={{ marginRight: 4 }}>
