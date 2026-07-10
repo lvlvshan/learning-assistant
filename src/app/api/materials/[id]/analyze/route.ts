@@ -131,10 +131,44 @@ export async function POST(
   }
 
   const { id } = await context.params;
-
   const material = await prisma.learningMaterial.findUnique({ where: { id } });
   if (!material) {
     return NextResponse.json({ error: "资料不存在" }, { status: 404 });
+  }
+
+  // 解析请求体（前端传递的 rootId）
+  let body: any = {};
+  try {
+    body = await request.json();
+  } catch { /* 无请求体 */ }
+
+  const targetRootId = body?.rootId;
+
+  // 确定根知识点：使用指定 rootId 或按资料标题查重/新建
+  let rootKP: any;
+  if (targetRootId) {
+    rootKP = await prisma.knowledgePoint.findUnique({ where: { id: targetRootId } });
+    if (!rootKP || rootKP.parentId !== null) {
+      return NextResponse.json({ error: "指定的根节点无效" }, { status: 400 });
+    }
+  } else {
+    const existingRoot = await prisma.knowledgePoint.findFirst({
+      where: { name: material.title, subjectId: material.subjectId, parentId: null },
+    });
+    if (existingRoot) {
+      rootKP = existingRoot;
+    } else {
+      rootKP = await prisma.knowledgePoint.create({
+        data: {
+          name: material.title,
+          description: `来自资料「${material.title}」的知识点`,
+          subjectId: material.subjectId,
+          parentId: null,
+          difficultyLevel: "BASIC",
+          orderIndex: 0,
+        },
+      });
+    }
   }
 
   try {
@@ -149,23 +183,10 @@ export async function POST(
       return NextResponse.json({ error: "AI 未能提取出知识点" }, { status: 500 });
     }
 
-    // 创建根知识点（以资料标题命名），AI 提取的知识点作为其子节点
-    const rootKP = await prisma.knowledgePoint.create({
-      data: {
-        name: material.title,
-        description: `来自资料「${material.title}」的知识点`,
-        subjectId: material.subjectId,
-        parentId: null,
-        difficultyLevel: "BASIC",
-        orderIndex: 0,
-      },
-    });
-
     const savedPoints = await saveKnowledgePoints(
       result.knowledgePoints,
       rootKP.id,
       material.subjectId,
-      material.id
     );
 
     const allPoints = [{ ...rootKP, children: savedPoints }];
@@ -192,32 +213,67 @@ export async function POST(
   }
 }
 
+/**
+ * 递归保存知识点：同名去重，子节点合并
+ * @param points - AI 提取的知识点列表
+ * @param parentId - 父节点 ID（始终指向已存在的节点）
+ * @param subjectId - 科目 ID
+ */
 async function saveKnowledgePoints(
   points: any[],
-  parentId: string | null,
+  parentId: string,
   subjectId: string,
-  materialId: string
 ): Promise<any[]> {
   const saved: any[] = [];
 
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
-    const kp = await prisma.knowledgePoint.create({
-      data: {
-        name: p.name,
-        description: p.description || "",
-        subjectId,
-        parentId,
-        difficultyLevel: p.difficulty || "BASIC",
-        orderIndex: i,
-      },
+
+    // 查重：同 parentId + 同名 + 同科目
+    const existing = await prisma.knowledgePoint.findFirst({
+      where: { name: p.name, parentId, subjectId },
+      include: { children: { orderBy: { orderIndex: "asc" } } },
     });
 
-    if (p.children && p.children.length > 0) {
-      const children = await saveKnowledgePoints(p.children, kp.id, subjectId, materialId);
-      saved.push({ ...kp, children });
+    if (existing) {
+      // 复用已有知识点，更新描述和难度
+      const kp = await prisma.knowledgePoint.update({
+        where: { id: existing.id },
+        data: {
+          description: p.description ? p.description : existing.description,
+          difficultyLevel: p.difficulty || existing.difficultyLevel,
+        },
+      });
+
+      // 递归合并子节点：将已有子节点注入到 AI 结果中继续 merge
+      if (p.children && p.children.length > 0) {
+        // 已有子节点作为兜底，与 AI 新提取的子节点一起递归合并
+        const allChildren = [...p.children, ...existing.children];
+        const mergedChildren = await saveKnowledgePoints(allChildren, kp.id, subjectId);
+        saved.push({ ...kp, children: mergedChildren });
+      } else {
+        // AI 没有新子节点，保留已有子节点
+        saved.push({ ...kp, children: existing.children });
+      }
     } else {
-      saved.push(kp);
+      // 新建知识点
+      const kp = await prisma.knowledgePoint.create({
+        data: {
+          name: p.name,
+          description: p.description || "",
+          subjectId,
+          parentId,
+          difficultyLevel: p.difficulty || "BASIC",
+          orderIndex: i,
+        },
+      });
+
+      if (p.children && p.children.length > 0) {
+        const children = await saveKnowledgePoints(p.children, kp.id, subjectId);
+        saved.push({ ...kp, children });
+      } else {
+        saved.push(kp);
+      }
     }
   }
 

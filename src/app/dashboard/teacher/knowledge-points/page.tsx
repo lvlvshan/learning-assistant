@@ -2,12 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
-  Card, Button, Select, Space, App, Tree, Empty, Spin,
-  Modal, Form, Input, Tag, Typography, Tooltip, Dropdown,
+  Card, Button, Select, Space, App, Tree, Empty, Spin, Modal, Form, Input, Tag, Typography, Tooltip, Dropdown,
 } from "antd";
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, ApartmentOutlined,
-  FileTextOutlined, ReloadOutlined,
+  FileTextOutlined, ReloadOutlined, CaretRightOutlined, CaretDownOutlined,
 } from "@ant-design/icons";
 import apiClient from "@/lib/api";
 import type { DataNode } from "antd/es/tree";
@@ -40,6 +39,7 @@ export default function TeacherKnowledgePoints() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>();
   const [treeData, setTreeData] = useState<DataNode[]>([]);
+  const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingKP, setEditingKP] = useState<KnowledgePoint | null>(null);
@@ -58,7 +58,10 @@ export default function TeacherKnowledgePoints() {
     setLoading(true);
     try {
       const res = await apiClient.get(`/knowledge-points?tree=true&subjectId=${selectedSubject}`);
-      setTreeData(buildTreeData(res.data.knowledgePoints || []));
+      const points = res.data.knowledgePoints || [];
+      setTreeData(buildTreeData(points));
+      // 切换科目时默认展开所有根节点
+      setExpandedKeys(points.map((n: any) => n.id));
     } finally {
       setLoading(false);
     }
@@ -105,26 +108,7 @@ export default function TeacherKnowledgePoints() {
 
   // 编辑知识点
   const handleEdit = (nodeKey: string) => {
-    // 从 treeData 中找到对应的知识点
-    const findKP = (nodes: DataNode[], key: string): KnowledgePoint | null => {
-      for (const n of nodes) {
-        if (n.key === key) {
-          // 从 API 重新获取该知识点详情
-          return { id: key, name: "", description: "", subjectId: "", parentId: null, difficultyLevel: "BASIC", orderIndex: 0 };
-        }
-        if (n.children) {
-          const found = findKP(n.children, key);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    // 直接从 API 获取
-    apiClient.get(`/knowledge-points?parentId=${nodeKey}`).then((res) => {
-      // 这里只是用来打开编辑框，具体值在 form 中填充
-    });
-
+    openEditModal(nodeKey);
     setParentId(null);
     setEditingKP({ id: nodeKey } as KnowledgePoint);
     form.resetFields();
@@ -182,17 +166,14 @@ export default function TeacherKnowledgePoints() {
     ],
     onClick: ({ key }: { key: string }) => {
       if (key === "add") handleAddChild(nodeKey);
-      else if (key === "edit") {
-        openEditModal(nodeKey);
-      } else if (key === "delete") handleDelete(nodeKey);
+      else if (key === "edit") handleEdit(nodeKey);
+      else if (key === "delete") handleDelete(nodeKey);
     },
   });
 
   // 打开编辑模态框
   const openEditModal = async (id: string) => {
     try {
-      const res = await apiClient.get(`/knowledge-points?parentId=${id}`);
-      // 获取当前节点的详情 - 直接找第一级
       const allRes = await apiClient.get(`/knowledge-points?tree=true&subjectId=${selectedSubject}`);
       const findNode = (nodes: any[], key: string): any => {
         for (const n of nodes) {
@@ -217,6 +198,13 @@ export default function TeacherKnowledgePoints() {
         setModalOpen(true);
       }
     } catch {}
+  };
+
+  // 展开/折叠切换
+  const toggleExpand = (key: string) => {
+    setExpandedKeys((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
   };
 
   return (
@@ -278,11 +266,29 @@ export default function TeacherKnowledgePoints() {
         ) : (
           <Tree
             showIcon
-            defaultExpandAll
+            expandedKeys={expandedKeys}
+            onExpand={(keys) => setExpandedKeys(keys as string[])}
             treeData={treeData}
             titleRender={(node: any) => (
               <Dropdown menu={treeNodeMenu(node.key)} trigger={["contextMenu"]}>
-                <span>{node.title}</span>
+                <span style={{ display: "flex", alignItems: "center" }}>
+                  {node.children && node.children.length > 0 && (
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleExpand(node.key);
+                      }}
+                      style={{ cursor: "pointer", marginRight: 4, userSelect: "none" }}
+                    >
+                      {expandedKeys.includes(node.key) ? (
+                        <CaretDownOutlined />
+                      ) : (
+                        <CaretRightOutlined />
+                      )}
+                    </span>
+                  )}
+                  {node.title}
+                </span>
               </Dropdown>
             )}
             style={{ fontSize: 14 }}

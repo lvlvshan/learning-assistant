@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   Card, Table, Button, Modal, Form, Input, Select, Upload, Space, App,
-  Tag, Typography, Tooltip, Tabs, Alert,
+  Tag, Typography, Tooltip, Tabs, Alert, Tree,
 } from "antd";
 import {
   PlusOutlined, UploadOutlined, DeleteOutlined, FileTextOutlined,
@@ -12,6 +12,7 @@ import {
 } from "@ant-design/icons";
 import apiClient from "@/lib/api";
 import type { UploadFile } from "antd";
+import type { DataNode } from "antd/es/tree";
 
 const typeIcons: Record<string, any> = {
   TEXT: FileTextOutlined,
@@ -44,6 +45,12 @@ export default function TeacherMaterials() {
   const [uploading, setUploading] = useState(false);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
 
+  // AI 分析根节点选择器状态
+  const [rootNodes, setRootNodes] = useState<DataNode[]>([]);
+  const [rootSelectOpen, setRootSelectOpen] = useState(false);
+  const [selectedRootId, setSelectedRootId] = useState<string>();
+  const [analyzingTargetId, setAnalyzingTargetId] = useState<string>();
+
   const fetchMaterials = async () => {
     setLoading(true);
     try {
@@ -70,6 +77,20 @@ export default function TeacherMaterials() {
   useEffect(() => {
     fetchMaterials();
   }, [subjectFilter]);
+
+  // 加载指定科目的根节点列表（用于选择器）
+  const fetchRootNodes = async (subjectId: string) => {
+    try {
+      const res = await apiClient.get(`/knowledge-points?tree=true&subjectId=${subjectId}`);
+      const points = res.data.knowledgePoints || [];
+      // 只取第一层作为可选根节点
+      setRootNodes(points.map((p: any) => ({
+        key: p.id,
+        title: p.name,
+        children: [], // 不展开子节点
+      })));
+    } catch {}
+  };
 
   // 创建文本资料
   const handleCreateText = async (values: any) => {
@@ -123,18 +144,31 @@ export default function TeacherMaterials() {
     }
   };
 
-  // AI 分析知识点（支持多文件并发）
-  const handleAnalyze = async (id: string) => {
-    setAnalyzing((prev) => [...prev, id]);
+  // 点击 AI 分析 → 弹出根节点选择器
+  const handleAnalyze = async (id: string, record: any) => {
+    setAnalyzingTargetId(id);
+    await fetchRootNodes(record.subjectId);
+    setSelectedRootId(undefined);
+    setRootSelectOpen(true);
+  };
+
+  // 确认分析
+  const confirmAnalyze = async () => {
+    setRootSelectOpen(false);
+    if (!analyzingTargetId) return;
+
+    setAnalyzing((prev) => [...prev, analyzingTargetId]);
     try {
-      const res = await apiClient.post(`/materials/${id}/analyze`);
+      const res = await apiClient.post(`/materials/${analyzingTargetId}/analyze`, {
+        rootId: selectedRootId,
+      });
       setAnalyzeResult(res.data);
       setAnalyzeModalOpen(true);
       msg.success("知识点提取完成，请审核");
     } catch (error: any) {
       msg.error(error.response?.data?.error || "分析失败");
     } finally {
-      setAnalyzing((prev) => prev.filter((x) => x !== id));
+      setAnalyzing((prev) => prev.filter((x) => x !== analyzingTargetId));
     }
   };
 
@@ -222,7 +256,7 @@ export default function TeacherMaterials() {
                 type="link"
                 icon={<RobotOutlined />}
                 loading={analyzing.includes(record.id)}
-                onClick={() => handleAnalyze(record.id)}
+                onClick={() => handleAnalyze(record.id, record)}
               >
                 AI 分析
               </Button>
@@ -381,6 +415,42 @@ export default function TeacherMaterials() {
             {renderKnowledgePoints(analyzeResult.knowledgePoints || [])}
           </div>
         )}
+      </Modal>
+
+      {/* 根节点选择器 */}
+      <Modal
+        title="选择目标根节点"
+        open={rootSelectOpen}
+        onOk={confirmAnalyze}
+        onCancel={() => setRootSelectOpen(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setRootSelectOpen(false)}>取消</Button>,
+          <Button
+            key="submit"
+            type="primary"
+            disabled={!selectedRootId}
+            onClick={confirmAnalyze}
+          >
+            确认分析
+          </Button>,
+        ]}
+        width={480}
+      >
+        <Tree
+          showIcon
+          defaultExpandAll
+          treeData={rootNodes}
+          onSelect={(selectedKeys) => setSelectedRootId(selectedKeys[0] as string)}
+          titleRender={(node: any) => (
+            <Space>
+              <FileTextOutlined />
+              <span>{node.title}</span>
+            </Space>
+          )}
+        />
+        <Typography.Text type="secondary" style={{ display: "block", marginTop: 8 }}>
+          选择后将把 AI 提取的知识点合并到该节点下（同名去重，不同名追加）
+        </Typography.Text>
       </Modal>
     </div>
   );
