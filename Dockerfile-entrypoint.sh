@@ -3,9 +3,9 @@ set -e
 
 echo "Initializing database..."
 
-# 数据库已在构建阶段创建并复制到镜像中，确保文件权限正确
+# 确保数据库文件存在且有正确权限
 touch /app/prisma/dev.db
-chown nextjs:nodejs /app/prisma/dev.db
+chown nextjs:nodejs /app/prisma/dev.db 2>/dev/null || true
 
 echo "Database ready. Starting Next.js..."
 exec node server.js
