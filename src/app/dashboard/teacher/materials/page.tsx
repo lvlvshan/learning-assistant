@@ -45,10 +45,10 @@ export default function TeacherMaterials() {
   const [uploading, setUploading] = useState(false);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
 
-  // AI 分析根节点选择器状态
-  const [rootNodes, setRootNodes] = useState<DataNode[]>([]);
-  const [rootSelectOpen, setRootSelectOpen] = useState(false);
-  const [selectedRootId, setSelectedRootId] = useState<string>();
+  // AI 分析节点选择器状态
+  const [treeNodes, setTreeNodes] = useState<DataNode[]>([]);
+  const [treeSelectOpen, setTreeSelectOpen] = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState<string>();
   const [analyzingTargetId, setAnalyzingTargetId] = useState<string>();
 
   const fetchMaterials = async () => {
@@ -78,17 +78,11 @@ export default function TeacherMaterials() {
     fetchMaterials();
   }, [subjectFilter]);
 
-  // 加载指定科目的根节点列表（用于选择器）
-  const fetchRootNodes = async (subjectId: string) => {
+  // 加载指定科目的完整知识点树（用于选择器）
+  const fetchTreeNodeList = async (subjectId: string) => {
     try {
       const res = await apiClient.get(`/knowledge-points?tree=true&subjectId=${subjectId}`);
-      const points = res.data.knowledgePoints || [];
-      // 只取第一层作为可选根节点
-      setRootNodes(points.map((p: any) => ({
-        key: p.id,
-        title: p.name,
-        children: [], // 不展开子节点
-      })));
+      setTreeNodes(res.data.knowledgePoints || []);
     } catch {}
   };
 
@@ -144,23 +138,23 @@ export default function TeacherMaterials() {
     }
   };
 
-  // 点击 AI 分析 → 弹出根节点选择器
+  // 点击 AI 分析 → 弹出节点选择器
   const handleAnalyze = async (id: string, record: any) => {
     setAnalyzingTargetId(id);
-    await fetchRootNodes(record.subjectId);
-    setSelectedRootId(undefined);
-    setRootSelectOpen(true);
+    await fetchTreeNodeList(record.subjectId);
+    setSelectedNodeId(undefined);
+    setTreeSelectOpen(true);
   };
 
   // 确认分析
   const confirmAnalyze = async () => {
-    setRootSelectOpen(false);
+    setTreeSelectOpen(false);
     if (!analyzingTargetId) return;
 
     setAnalyzing((prev) => [...prev, analyzingTargetId]);
     try {
       const res = await apiClient.post(`/materials/${analyzingTargetId}/analyze`, {
-        rootId: selectedRootId,
+        rootId: selectedNodeId,
       });
       setAnalyzeResult(res.data);
       setAnalyzeModalOpen(true);
@@ -417,18 +411,18 @@ export default function TeacherMaterials() {
         )}
       </Modal>
 
-      {/* 根节点选择器 */}
+      {/* 节点选择器 */}
       <Modal
-        title="选择目标根节点"
-        open={rootSelectOpen}
+        title="选择目标节点"
+        open={treeSelectOpen}
         onOk={confirmAnalyze}
-        onCancel={() => setRootSelectOpen(false)}
+        onCancel={() => setTreeSelectOpen(false)}
         footer={[
-          <Button key="cancel" onClick={() => setRootSelectOpen(false)}>取消</Button>,
+          <Button key="cancel" onClick={() => setTreeSelectOpen(false)}>取消</Button>,
           <Button
             key="submit"
             type="primary"
-            disabled={!selectedRootId}
+            disabled={!selectedNodeId}
             onClick={confirmAnalyze}
           >
             确认分析
@@ -439,8 +433,8 @@ export default function TeacherMaterials() {
         <Tree
           showIcon
           defaultExpandAll
-          treeData={rootNodes}
-          onSelect={(selectedKeys) => setSelectedRootId(selectedKeys[0] as string)}
+          treeData={treeNodes}
+          onSelect={(selectedKeys) => setSelectedNodeId(selectedKeys[0] as string)}
           titleRender={(node: any) => (
             <Space>
               <FileTextOutlined />

@@ -7,6 +7,7 @@ import {
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, ApartmentOutlined,
   FileTextOutlined, ReloadOutlined, CaretRightOutlined, CaretDownOutlined,
+  ArrowsAltOutlined,
 } from "@ant-design/icons";
 import apiClient from "@/lib/api";
 import type { DataNode } from "antd/es/tree";
@@ -45,6 +46,12 @@ export default function TeacherKnowledgePoints() {
   const [editingKP, setEditingKP] = useState<KnowledgePoint | null>(null);
   const [parentId, setParentId] = useState<string | null>(null);
   const [form] = Form.useForm();
+
+  // 结构调整状态
+  const [moveModalOpen, setMoveModalOpen] = useState(false);
+  const [movingNode, setMovingNode] = useState<KnowledgePoint | null>(null);
+  const [moveTreeData, setMoveTreeData] = useState<DataNode[]>([]);
+  const [selectedMoveTarget, setSelectedMoveTarget] = useState<string>();
 
   const fetchSubjects = async () => {
     try {
@@ -106,6 +113,55 @@ export default function TeacherKnowledgePoints() {
     setModalOpen(true);
   };
 
+  // 移动知识点（结构调整）
+  const handleMove = async (nodeKey: string) => {
+    try {
+      const allRes = await apiClient.get(`/knowledge-points?tree=true&subjectId=${selectedSubject}`);
+      const findNode = (nodes: any[], key: string): any => {
+        for (const n of nodes) {
+          if (n.id === key) return n;
+          if (n.children) {
+            const found = findNode(n.children, key);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+      const node = findNode(allRes.data.knowledgePoints, nodeKey);
+      if (!node) return;
+
+      // 排除自身及其子节点
+      const excludeKeys = new Set([node.id]);
+      const collectChildren = (n: any) => {
+        if (n.children) n.children.forEach((c: any) => { excludeKeys.add(c.id); collectChildren(c); });
+      };
+      collectChildren(node);
+
+      const filteredTree = allRes.data.knowledgePoints.filter((n: any) => !excludeKeys.has(n.id));
+
+      setMovingNode(node);
+      setMoveTreeData(buildTreeData(filteredTree));
+      setSelectedMoveTarget(undefined);
+      setMoveModalOpen(true);
+    } catch {}
+  };
+
+  // 确认移动
+  const confirmMove = async () => {
+    if (!movingNode || !selectedMoveTarget) return;
+    try {
+      await apiClient.put("/knowledge-points", {
+        id: movingNode.id,
+        parentId: selectedMoveTarget,
+      });
+      message.success("结构调整成功");
+      setMoveModalOpen(false);
+      fetchTree();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || "移动失败");
+    }
+  };
+
   // 编辑知识点
   const handleEdit = (nodeKey: string) => {
     openEditModal(nodeKey);
@@ -161,12 +217,14 @@ export default function TeacherKnowledgePoints() {
     items: [
       { key: "add", label: "添加子知识点", icon: <PlusOutlined /> },
       { key: "edit", label: "编辑", icon: <EditOutlined /> },
+      { key: "move", label: "移动到此节点下", icon: <ArrowsAltOutlined /> },
       { type: "divider" },
       { key: "delete", label: "删除", icon: <DeleteOutlined />, danger: true },
     ],
     onClick: ({ key }: { key: string }) => {
       if (key === "add") handleAddChild(nodeKey);
       else if (key === "edit") handleEdit(nodeKey);
+      else if (key === "move") handleMove(nodeKey);
       else if (key === "delete") handleDelete(nodeKey);
     },
   });
@@ -333,6 +391,41 @@ export default function TeacherKnowledgePoints() {
             />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* 移动节点模态框 */}
+      <Modal
+        title={`移动「${movingNode?.name}」`}
+        open={moveModalOpen}
+        onCancel={() => { setMoveModalOpen(false); setSelectedMoveTarget(undefined); }}
+        footer={[
+          <Button key="cancel" onClick={() => { setMoveModalOpen(false); setSelectedMoveTarget(undefined); }}>取消</Button>,
+          <Button
+            key="submit"
+            type="primary"
+            disabled={!selectedMoveTarget}
+            onClick={confirmMove}
+          >
+            确认移动
+          </Button>,
+        ]}
+        width={480}
+      >
+        <Tree
+          showIcon
+          defaultExpandAll
+          treeData={moveTreeData}
+          onSelect={(keys) => setSelectedMoveTarget(keys[0] as string)}
+          titleRender={(node: any) => (
+            <Space>
+              <FileTextOutlined />
+              <span>{node.title}</span>
+            </Space>
+          )}
+        />
+        <Typography.Text type="secondary" style={{ display: "block", marginTop: 8 }}>
+          选择新父节点，知识点将移动到新节点下
+        </Typography.Text>
       </Modal>
     </div>
   );
