@@ -20,11 +20,10 @@ COPY . .
 # Prisma：生成客户端 + 预创建数据库并填充种子数据（构建阶段完成）
 RUN npx prisma generate
 RUN mkdir -p /app/prisma && \
-    touch /app/prisma/dev.db && \
-    DATABASE_URL="file:/app/prisma/dev.db" npx prisma db push --create-db --skip-generate && \
+    DATABASE_URL="file:/app/prisma/dev.db" node node_modules/prisma/build/index.js db push --schema=./prisma/schema.prisma && \
     npx --yes esbuild prisma/seed.ts --bundle --platform=node \
-      --external:@prisma/client --external:bcryptjs --outfile=/app/prisma/seed.js && \
-    DATABASE_URL="file:/app/prisma/dev.db" node /app/prisma/seed.js
+      --external:@prisma/client --external:bcryptjs --outfile=prisma/seed.js && \
+    DATABASE_URL="file:/app/prisma/dev.db" node prisma/seed.js
 
 # Next.js 构建（standalone 模式）
 RUN npm run build
