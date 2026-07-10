@@ -20,9 +20,6 @@ COPY . .
 # Prisma：生成客户端
 RUN npx prisma generate
 
-# 预编译种子脚本（不 external，确保 bcryptjs 等依赖全部打包进 seed.js）
-RUN npx --yes esbuild prisma/seed.ts --bundle --platform=node --outfile=prisma/seed.js
-
 # Next.js 构建（standalone 模式）
 RUN npm run build
 
@@ -50,14 +47,18 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/scripts ./scripts
 
-# ─── Prisma 运行时依赖（含 schema + seed） ──────────────
+# ─── Prisma 运行时依赖（含 schema） ──────────────────────────
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
 COPY --from=builder /app/prisma/schema.prisma ./prisma/schema.prisma
-COPY --from=builder /app/prisma/seed.js ./prisma/seed.js
+COPY --from=builder /app/prisma/seed.ts ./prisma/seed.ts
 
 # ─── 重新生成 Linux 平台 Prisma 客户端（覆盖 Windows 二进制文件） ──
 RUN DATABASE_URL="file:/app/prisma/dev.db" node node_modules/prisma/build/index.js generate
+
+# ─── 在 Linux 上预编译种子脚本（确保引用正确的 Prisma 引擎） ──
+RUN npx --yes esbuild prisma/seed.ts --bundle --platform=node --outfile=prisma/seed.js
 
 # ─── 入口脚本：启动时创建数据库 + 种子数据 ──────────────
 COPY Dockerfile-entrypoint.sh /docker-entrypoint.sh
