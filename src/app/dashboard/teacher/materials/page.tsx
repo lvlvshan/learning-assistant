@@ -160,23 +160,38 @@ export default function TeacherMaterials() {
     }
   };
 
-  // 点击 AI 分析 → 弹出节点选择器
+  // 点击 AI 分析 → 弹出节点选择器（无已有节点时直接分析）
   const handleAnalyze = async (id: string, record: any) => {
     setAnalyzingTargetId(id);
-    await fetchTreeNodeList(record.subjectId);
-    setSelectedNodeId(undefined);
-    setTreeSelectOpen(true);
+    try {
+      const res = await apiClient.get(`/knowledge-points?tree=true&subjectId=${record.subjectId}`);
+      const points = res.data.knowledgePoints || [];
+      if (points.length === 0) {
+        // 没有已有节点，直接分析（走默认逻辑：按科目创建根节点）
+        startAnalyze(id, undefined);
+      } else {
+        // 有节点则弹出选择器
+        const transformTree = (nodes: any[]): DataNode[] =>
+          nodes.map((n) => ({
+            key: n.id,
+            name: n.name,
+            description: n.description,
+            difficultyLevel: n.difficultyLevel,
+            children: n.children ? transformTree(n.children) : [],
+          }));
+        setTreeNodes(transformTree(points));
+        setSelectedNodeId(undefined);
+        setTreeSelectOpen(true);
+      }
+    } catch {}
   };
 
-  // 确认分析
-  const confirmAnalyze = async () => {
-    setTreeSelectOpen(false);
-    if (!analyzingTargetId) return;
-
-    setAnalyzing((prev) => [...prev, analyzingTargetId]);
+  // 执行分析（通用逻辑）
+  const startAnalyze = async (id: string, nodeId?: string) => {
+    setAnalyzing((prev) => [...prev, id]);
     try {
-      const res = await apiClient.post(`/materials/${analyzingTargetId}/analyze`, {
-        rootId: selectedNodeId,
+      const res = await apiClient.post(`/materials/${id}/analyze`, {
+        rootId: nodeId,
       });
       setAnalyzeResult(res.data);
       setAnalyzeModalOpen(true);
@@ -184,8 +199,15 @@ export default function TeacherMaterials() {
     } catch (error: any) {
       msg.error(error.response?.data?.error || "分析失败");
     } finally {
-      setAnalyzing((prev) => prev.filter((x) => x !== analyzingTargetId));
+      setAnalyzing((prev) => prev.filter((x) => x !== id));
     }
+  };
+
+  // 确认分析（用户选择了节点后调用）
+  const confirmAnalyze = async () => {
+    setTreeSelectOpen(false);
+    if (!analyzingTargetId) return;
+    startAnalyze(analyzingTargetId, selectedNodeId);
   };
 
   // 删除资料
