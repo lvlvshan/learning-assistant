@@ -30,6 +30,18 @@ const typeLabels: Record<string, string> = {
   VIDEO: "视频",
 };
 
+const difficultyColors: Record<string, string> = {
+  BASIC: "green",
+  INTERMEDIATE: "orange",
+  ADVANCED: "red",
+};
+
+const difficultyLabels: Record<string, string> = {
+  BASIC: "基础",
+  INTERMEDIATE: "进阶",
+  ADVANCED: "高难",
+};
+
 export default function TeacherMaterials() {
   const { message: msg, modal } = App.useApp();
   const [materials, setMaterials] = useState<any[]>([]);
@@ -436,9 +448,16 @@ export default function TeacherMaterials() {
           treeData={treeNodes}
           onSelect={(selectedKeys) => setSelectedNodeId(selectedKeys[0] as string)}
           titleRender={(node: any) => (
-            <Space>
-              <FileTextOutlined />
-              <span>{node.title}</span>
+            <Space size={4}>
+              <Tag color={difficultyColors[node.difficultyLevel]} style={{ marginRight: 4 }}>
+                {difficultyLabels[node.difficultyLevel]}
+              </Tag>
+              <span>{node.name}</span>
+              {node.description && (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  — {node.description}
+                </Typography.Text>
+              )}
             </Space>
           )}
         />
