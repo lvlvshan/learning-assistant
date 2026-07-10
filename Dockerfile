@@ -20,9 +20,8 @@ COPY . .
 # Prisma：生成客户端
 RUN npx prisma generate
 
-# 预编译种子脚本
-RUN npx --yes esbuild prisma/seed.ts --bundle --platform=node \
-      --external:@prisma/client --external:bcryptjs --outfile=prisma/seed.js
+# 预编译种子脚本（不 external，确保 bcryptjs 等依赖全部打包进 seed.js）
+RUN npx --yes esbuild prisma/seed.ts --bundle --platform=node --outfile=prisma/seed.js
 
 # Next.js 构建（standalone 模式）
 RUN npm run build
