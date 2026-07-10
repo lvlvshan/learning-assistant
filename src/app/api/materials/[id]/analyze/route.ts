@@ -144,12 +144,12 @@ export async function POST(
 
   const targetRootId = body?.rootId;
 
-  // 确定根知识点：使用指定 rootId 或按资料标题查重/新建
+  // 确定目标节点：使用指定 nodeId 或按资料标题查重/新建根节点
   let rootKP: any;
   if (targetRootId) {
     rootKP = await prisma.knowledgePoint.findUnique({ where: { id: targetRootId } });
-    if (!rootKP || rootKP.parentId !== null) {
-      return NextResponse.json({ error: "指定的根节点无效" }, { status: 400 });
+    if (!rootKP) {
+      return NextResponse.json({ error: "指定的节点无效" }, { status: 400 });
     }
   } else {
     const existingRoot = await prisma.knowledgePoint.findFirst({
