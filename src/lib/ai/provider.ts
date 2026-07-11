@@ -69,6 +69,9 @@ export async function chatWithJSON<T>(
     cleanResponse = cleanResponse.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
   }
 
+  // 修复常见 JSON 语法错误：尾随逗号
+  cleanResponse = cleanResponse.replace(/,\s*([}\]])/g, "$1");
+
   try {
     return JSON.parse(cleanResponse) as T;
   } catch {
