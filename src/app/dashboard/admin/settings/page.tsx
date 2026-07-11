@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, Form, Input, InputNumber, Select, Button, Switch, App, Alert, Typography, Space, Tag, Divider } from "antd";
+import { Card, Form, Input, InputNumber, Select, Button, Switch, App, Alert, Typography, Space, Tag, Divider, Upload } from "antd";
+import { DownloadOutlined, InboxOutlined } from "@ant-design/icons";
 import apiClient from "@/lib/api";
 
 interface AIConfig {
@@ -32,6 +33,10 @@ export default function AISettings() {
   const [mineruConfig, setMineruConfig] = useState<MinerUConfig | null>(null);
   const [mineruLoading, setMineruLoading] = useState(false);
   const [mineruSaving, setMineruSaving] = useState(false);
+
+  // 数据管理状态
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     fetchConfig();
@@ -71,6 +76,48 @@ export default function AISettings() {
     } finally {
       setMineruSaving(false);
     }
+  };
+
+  // 导出数据备份
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await apiClient.get("/admin/export", { responseType: "blob" });
+      const blob = new Blob([res.data], { type: "application/json" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `learning-assistant-backup-${Date.now()}.json`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      message.success("导出成功");
+    } catch (error: any) {
+      message.error(error.response?.data?.error || "导出失败");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // 导入数据恢复
+  const handleImport = async (file: File) => {
+    if (file.type !== "application/json") {
+      message.error("请上传 JSON 格式的备份文件");
+      return false;
+    }
+    setImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      await apiClient.post("/admin/import", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      message.success("数据导入成功，请刷新页面查看");
+    } catch (error: any) {
+      message.error(error.response?.data?.error || "导入失败");
+    } finally {
+      setImporting(false);
+    }
+    return false; // 阻止默认上传行为
   };
 
   const fetchConfig = async () => {
@@ -292,6 +339,43 @@ export default function AISettings() {
             </Typography.Text>
           </div>
         )}
+      </Card>
+
+      <Divider />
+
+      <Card title="数据管理">
+        <Space direction="vertical" style={{ width: "100%" }} size="large">
+          <div>
+            <Typography.Text strong>导出备份</Typography.Text>
+            <Typography.Text type="secondary" style={{ marginLeft: 12 }}>
+              导出所有系统数据为 JSON 文件
+            </Typography.Text>
+            <div style={{ marginTop: 8 }}>
+              <Button type="primary" icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
+                导出数据备份
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <Typography.Text strong>导入恢复</Typography.Text>
+            <Typography.Text type="secondary" style={{ marginLeft: 12 }}>
+              上传 JSON 备份文件恢复数据（将清空当前所有数据）
+            </Typography.Text>
+            <div style={{ marginTop: 8 }}>
+              <Upload.Dragger
+                accept=".json"
+                showUploadList={false}
+                beforeUpload={handleImport}
+                disabled={importing}
+              >
+                <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+                <p className="ant-upload-text">点击或拖拽 JSON 备份文件到此处</p>
+                <p className="ant-upload-hint">导入将清空当前数据并恢复备份内容，请谨慎操作</p>
+              </Upload.Dragger>
+            </div>
+          </div>
+        </Space>
       </Card>
     </div>
   );

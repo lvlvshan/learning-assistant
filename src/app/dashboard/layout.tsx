@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Layout, Menu, Avatar, Dropdown, Typography, Spin } from "antd";
+import { Layout, Menu, Avatar, Dropdown, Typography, Spin, Modal, Form, Input } from "antd";
 import {
   DashboardOutlined,
   UserOutlined,
@@ -14,6 +14,7 @@ import {
   BarChartOutlined,
   LogoutOutlined,
   ReadOutlined,
+  LockOutlined,
 } from "@ant-design/icons";
 import { useUserStore } from "@/stores/userStore";
 import apiClient from "@/lib/api";
@@ -36,6 +37,8 @@ export default function DashboardLayout({
   const { user, token, setUser, logout } = useUserStore();
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordForm] = Form.useForm();
 
   useEffect(() => {
     // zustand v5 persist 恢复是异步的（Promise-based microtask）
@@ -143,6 +146,27 @@ export default function DashboardLayout({
     router.push("/login");
   };
 
+  const handleChangePassword = async () => {
+    try {
+      const values = await passwordForm.validateFields();
+      if (values.newPassword !== values.confirmPassword) {
+        Modal.error({ title: "密码不一致", content: "两次输入的新密码不一致" });
+        return;
+      }
+      try {
+        await apiClient.post("/auth/change-password", {
+          oldPassword: values.oldPassword,
+          newPassword: values.newPassword,
+        });
+        Modal.success({ title: "密码修改成功" });
+        setPasswordModalOpen(false);
+        passwordForm.resetFields();
+      } catch (error: any) {
+        Modal.error({ title: "修改失败", content: error.response?.data?.error || "请检查旧密码" });
+      }
+    } catch {}
+  };
+
   // 计算当前选中的菜单项
   const selectedKey = menuItems.find((item) => pathname.startsWith(item.key))?.key || menuItems[0]?.key;
 
@@ -150,14 +174,17 @@ export default function DashboardLayout({
     items: [
       { key: "profile", label: `${user.name} (${roleLabels[user.role]})`, disabled: true },
       { type: "divider" as const },
+      { key: "changePassword", label: "修改密码", icon: <LockOutlined /> },
       { key: "logout", label: "退出登录", icon: <LogoutOutlined />, danger: true },
     ],
     onClick: ({ key }: { key: string }) => {
       if (key === "logout") handleLogout();
+      else if (key === "changePassword") setPasswordModalOpen(true);
     },
   };
 
   return (
+    <>
     <Layout style={{ minHeight: "100vh" }}>
       <Sider
         collapsible
@@ -203,5 +230,32 @@ export default function DashboardLayout({
         <Content className="content-area">{children}</Content>
       </Layout>
     </Layout>
+
+    {/* 修改密码模态框 */}
+    <Modal
+      title="修改密码"
+      open={passwordModalOpen}
+      onCancel={() => { setPasswordModalOpen(false); passwordForm.resetFields(); }}
+      onOk={handleChangePassword}
+      okText="确认"
+      cancelText="取消"
+    >
+      <Form form={passwordForm} layout="vertical">
+        <Form.Item name="oldPassword" label="旧密码" rules={[{ required: true, message: "请输入旧密码" }]}>
+          <Input.Password />
+        </Form.Item>
+        <Form.Item name="newPassword" label="新密码" rules={[{ required: true, message: "请输入新密码" }, { min: 6, message: "至少6位" }]}>
+          <Input.Password />
+        </Form.Item>
+        <Form.Item
+          name="confirmPassword"
+          label="确认新密码"
+          rules={[{ required: true, message: "请确认新密码" }]}
+        >
+          <Input.Password />
+        </Form.Item>
+      </Form>
+    </Modal>
+    </>
   );
 }
