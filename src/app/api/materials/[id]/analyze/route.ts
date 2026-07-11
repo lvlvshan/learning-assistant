@@ -153,12 +153,31 @@ export async function POST(
   let fileNode: any;
 
   if (targetRootId) {
-    // 用户选择了特定节点 → 合并到该节点
+    // 用户选择了特定节点 → 在该节点下创建/复用资料文件名节点，AI 提取的知识点合并到文件名节点下
     const selectedNode = await prisma.knowledgePoint.findUnique({ where: { id: targetRootId } });
     if (!selectedNode) {
       return NextResponse.json({ error: "指定的节点无效" }, { status: 400 });
     }
-    saveToNodeId = targetRootId;
+
+    // 查找或创建以资料标题命名的子节点
+    const fileNode = await prisma.knowledgePoint.findFirst({
+      where: { name: material.title, parentId: targetRootId, subjectId: material.subjectId },
+    });
+    if (fileNode) {
+      saveToNodeId = fileNode.id;
+    } else {
+      const newFileNode = await prisma.knowledgePoint.create({
+        data: {
+          name: material.title,
+          description: `来自资料「${material.title}」`,
+          subjectId: material.subjectId,
+          parentId: targetRootId,
+          difficultyLevel: "BASIC",
+          orderIndex: 0,
+        },
+      });
+      saveToNodeId = newFileNode.id;
+    }
   } else {
     // 未选择节点 → 按科目创建/复用根节点，再创建资料文件作为一级子节点
     const subjectName = material.subject?.name || "未分类";
@@ -219,12 +238,25 @@ export async function POST(
       material.subjectId,
     );
 
-    // 返回时构建层级：科目根节点 → 资料文件节点 → AI 提取的知识点
+    // 返回时构建层级
     let allPoints: any[];
     if (targetRootId) {
-      // 用户选择了特定节点 → 直接返回合并结果
+      // 用户选择了特定节点 → 该节点下 → 资料文件名节点 → AI 提取的知识点
       const targetNode = await prisma.knowledgePoint.findUnique({ where: { id: targetRootId } });
-      allPoints = [{ ...targetNode, children: savedPoints }];
+      const fileNodeResult = await prisma.knowledgePoint.findFirst({
+        where: { name: material.title, parentId: targetRootId, subjectId: material.subjectId },
+      });
+      allPoints = [
+        {
+          ...targetNode,
+          children: [
+            {
+              ...(fileNodeResult ? fileNodeResult : { id: saveToNodeId, name: material.title, description: `来自资料「${material.title}」`, difficultyLevel: "BASIC" }),
+              children: savedPoints,
+            },
+          ],
+        },
+      ];
     } else {
       const subjectName = material.subject?.name || "未分类";
       const fileNode = await prisma.knowledgePoint.findFirst({
