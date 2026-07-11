@@ -73,20 +73,20 @@ export async function POST(request: NextRequest) {
 
 /** 按 parentId 排序知识点，确保父节点在子节点之前 */
 function sortKnowledgePoints(points: any[]): any[] {
-  const map = new Map<string | null, any[]>();
+  const map = new Map<string, any[]>();
   for (const p of points) {
     const key = p.parentId ?? "__root__";
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(p);
   }
   const result: any[] = [];
-  function dfs(parentKey: string | null) {
+  function dfs(parentKey: string) {
     const children = map.get(parentKey) || [];
     for (const child of children) {
       result.push(child);
       dfs(child.id);
     }
   }
-  dfs(null);
+  dfs("__root__");
   return result;
 }
