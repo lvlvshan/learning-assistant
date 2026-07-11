@@ -8,7 +8,7 @@ export class OpenAICompatibleProvider implements IAIProvider {
     this.config = config;
   }
 
-  async chat(messages: Message[]): Promise<string> {
+  async chat(messages: Message[], maxTokensOverride?: number): Promise<string> {
     const endpoint = this.config.endpoint.replace(/\/$/, "") + "/chat/completions";
 
     const response = await fetch(endpoint, {
@@ -20,7 +20,7 @@ export class OpenAICompatibleProvider implements IAIProvider {
       body: JSON.stringify({
         model: this.config.model,
         messages,
-        max_tokens: this.config.maxTokens,
+        max_tokens: maxTokensOverride ?? this.config.maxTokens,
         temperature: this.config.temperature,
         stream: false,
       }),
@@ -44,10 +44,8 @@ export class CustomProvider implements IAIProvider {
     this.config = config;
   }
 
-  async chat(messages: Message[]): Promise<string> {
-    // 自定义模式使用与 OpenAI 兼容相同的请求格式
-    // 如果管理员需要不同的请求格式，可以通过配置不同的 endpoint 来实现
+  async chat(messages: Message[], maxTokensOverride?: number): Promise<string> {
     const provider = new OpenAICompatibleProvider(this.config);
-    return provider.chat(messages);
+    return provider.chat(messages, maxTokensOverride);
   }
 }

@@ -47,7 +47,8 @@ export async function isAIAvailable(): Promise<boolean> {
 // 调用 AI（带 JSON 输出要求）
 export async function chatWithJSON<T>(
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  maxTokensOverride?: number
 ): Promise<T> {
   const provider = await getAIProvider();
   if (!provider) {
@@ -59,9 +60,7 @@ export async function chatWithJSON<T>(
     { role: "user", content: userPrompt },
   ];
 
-  const startTime = Date.now();
-  const response = await provider.chat(messages);
-  const duration = Date.now() - startTime;
+  const response = await provider.chat(messages, maxTokensOverride);
 
   // 清理响应（去掉可能的 markdown 代码块标记）
   let cleanResponse = response.trim();

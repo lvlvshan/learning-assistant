@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 8188295362,
+      "node_id": "MDg6QXJ0aWZhY3Q4MTg4Mjk1MzYy",
+      "name": "lvlvshan~learning-assistant~BOKD18.dockerbuild",
+      "size_in_bytes": 78882,
+      "url": "https://api.github.com/repos/lvlvshan/learning-assistant/actions/artifacts/8188295362",
+      "archive_download_url": "https://api.github.com/repos/lvlvshan/learning-assistant/actions/artifacts/8188295362/zip",
+      "expired": false,
+      "digest": "sha256:5b284700b87d1e49b1dc169f2fe5640206cf30ef7f765c8bff7c07dbda8570b6",
+      "created_at": "2026-07-09T03:33:11Z",
+      "updated_at": "2026-07-09T03:33:11Z",
+      "expires_at": "2026-10-07T03:30:56Z",
+      "workflow_run": {
+        "id": 28992025441,
+        "repository_id": 1287971581,
+        "head_repository_id": 1287971581,
+        "head_branch": "main",
+        "head_sha": "4068d4e76e7ee7061b52732f4f9d64a63576e0fa"
+      }
+    }
+  ]
+}

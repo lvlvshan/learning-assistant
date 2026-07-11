@@ -28,7 +28,7 @@ export interface Message {
 
 // AI 提供商接口
 export interface IAIProvider {
-  chat(messages: Message[]): Promise<string>;
+  chat(messages: Message[], maxTokensOverride?: number): Promise<string>;
 }
 
 // 知识点提取结果
