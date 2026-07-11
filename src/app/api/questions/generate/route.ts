@@ -69,8 +69,7 @@ export async function POST(request: NextRequest) {
       需要生成的题目数量：${count}
       需要覆盖的认知层次：${bloomStr}
       允许的题型：${typeStr}
-      请确保题目覆盖至少 3 个不同的 Bloom 认知层次。`,
-      Math.max(4096, count * 600)
+      请确保题目覆盖至少 3 个不同的 Bloom 认知层次。`
     );
 
     if (!result.questions || result.questions.length === 0) {
