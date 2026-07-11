@@ -70,17 +70,12 @@ export async function chatWithJSON<T>(
 
   // 修复常见 JSON 语法错误：尾随逗号、缺失闭合括号
   cleanResponse = cleanResponse.replace(/,\s*([}\]])/g, "$1");
-  // 补全缺失的闭合括号/大括号
   const openBraces = (cleanResponse.match(/{/g) || []).length;
   const closeBraces = (cleanResponse.match(/}/g) || []).length;
   const openBrackets = (cleanResponse.match(/\[/g) || []).length;
   const closeBrackets = (cleanResponse.match(/\]/g) || []).length;
-  if (openBraces > closeBraces) {
-    cleanResponse += "}".repeat(openBraces - closeBraces);
-  }
-  if (openBrackets > closeBrackets) {
-    cleanResponse += "]".repeat(openBrackets - closeBrackets);
-  }
+  if (openBraces > closeBraces) cleanResponse += "}".repeat(openBraces - closeBraces);
+  if (openBrackets > closeBrackets) cleanResponse += "]".repeat(openBrackets - closeBrackets);
 
   try {
     return JSON.parse(cleanResponse) as T;
