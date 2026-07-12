@@ -197,7 +197,6 @@ export default function StudentPractice() {
             <div style={{ maxHeight: 420, overflow: "auto", border: "1px solid #f0f0f0", borderRadius: 6, padding: "8px 0" }}>
               <Tree
                 checkable
-                defaultExpandAll
                 treeData={treeData}
                 checkedKeys={checkedKeys}
                 onCheck={handleCheck}

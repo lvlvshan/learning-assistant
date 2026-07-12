@@ -67,8 +67,8 @@ export default function TeacherKnowledgePoints() {
       const res = await apiClient.get(`/knowledge-points?tree=true&subjectId=${selectedSubject}`);
       const points = res.data.knowledgePoints || [];
       setTreeData(buildTreeData(points));
-      // 切换科目时默认展开所有根节点
-      setExpandedKeys(points.map((n: any) => n.id));
+      // 默认全部折叠，用户按需展开
+      setExpandedKeys([]);
     } finally {
       setLoading(false);
     }
@@ -413,7 +413,6 @@ export default function TeacherKnowledgePoints() {
       >
         <Tree
           showIcon
-          defaultExpandAll
           treeData={moveTreeData}
           onSelect={(keys) => setSelectedMoveTarget(keys[0] as string)}
           titleRender={(node: any) => (

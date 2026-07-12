@@ -476,7 +476,6 @@ export default function TeacherMaterials() {
       >
         <Tree
           showIcon
-          defaultExpandAll
           treeData={treeNodes}
           onSelect={(selectedKeys) => setSelectedNodeId(selectedKeys?.[0] as string)}
           titleRender={(node: any) => (
