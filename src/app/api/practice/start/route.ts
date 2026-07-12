@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { subjectId, count = 10, knowledgePointIds: rawKpIds } = await request.json();
+    const { subjectId, knowledgePointIds: rawKpIds } = await request.json();
     if (!subjectId) {
       return NextResponse.json({ error: "请选择科目" }, { status: 400 });
     }
@@ -42,16 +42,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "该科目暂无已审核的题目，请联系老师" }, { status: 400 });
     }
 
-    // 随机选取 count 道题（不足则取全部）
-    const selectedCount = Math.min(count, questions.length);
-    const shuffled = [...questions].sort(() => Math.random() - 0.5).slice(0, selectedCount);
-
-    // 创建练习会话
+    // 所选知识点下所有已审核题目全部进入练习（不再随机抽样）
     const session = await prisma.exerciseSession.create({
       data: {
         studentId: auth.userId,
         subjectId,
-        totalQuestions: selectedCount,
+        totalQuestions: questions.length,
         correctCount: 0,
         score: 0,
         knowledgePointIds: JSON.stringify(kps.map(kp => kp.id)),
@@ -65,7 +61,7 @@ export async function POST(request: NextRequest) {
         status: session.status,
         startedAt: session.startedAt,
       },
-      questions: selectedCount,
+      questions: questions.length,
       selectedKnowledgePoints: kps.map(kp => kp.name),
     });
   } catch (error) {

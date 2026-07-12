@@ -94,16 +94,15 @@ export default function StudentPractice() {
     try {
       const res = await apiClient.post("/practice/start", {
         subjectId: currentSubject.id,
-        count: 10,
         knowledgePointIds: checkedKeys.length > 0 ? checkedKeys : undefined,
       });
-      const { session, selectedKnowledgePoints } = res.data;
+      const { session, questions, selectedKnowledgePoints } = res.data;
       setKpModalVisible(false);
-      // 显示知识点范围提示
+      // 显示知识点范围 + 题量提示
       const kpHint = selectedKnowledgePoints?.length
         ? `知识点范围：${selectedKnowledgePoints.join("、")}`
         : "练习全部知识点";
-      message.success(`开始练习！${kpHint}`);
+      message.success(`开始练习！${kpHint}（共 ${questions} 题）`);
       router.push(`/dashboard/student/practice/${session.id}`);
     } catch (error: any) {
       message.error(error.response?.data?.error || "开始练习失败");
