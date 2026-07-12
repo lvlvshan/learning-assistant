@@ -93,15 +93,20 @@ export default function TeacherQuestions() {
     } catch {}
   };
 
-  const flattenTree = (nodes: any[], parent = ""): any[] => {
+  const flattenTree = (nodes: any[], parent = "", depth = 0): any[] => {
     let result: any[] = [];
     for (const n of nodes) {
-      result.push({ ...n, parentName: parent });
+      result.push({ ...n, parentName: parent, depth });
       if (n.children) {
-        result = result.concat(flattenTree(n.children, n.name));
+        result = result.concat(flattenTree(n.children, n.name, depth + 1));
       }
     }
     return result;
+  };
+
+  const formatKPLabel = (kp: any) => {
+    const indent = kp.depth > 0 ? "└─ ".repeat(kp.depth) : "";
+    return `${indent}${kp.name}`;
   };
 
   useEffect(() => {
@@ -358,13 +363,15 @@ export default function TeacherQuestions() {
           <Select
             allowClear
             placeholder="按知识点"
-            style={{ width: 150 }}
+            style={{ width: 240 }}
             value={filterKP}
             onChange={(v) => setFilterKP(v)}
             options={knowledgePoints.map((kp) => ({
               value: kp.id,
-              label: `${kp.parentName ? kp.parentName + " > " : ""}${kp.name}`,
+              label: formatKPLabel(kp),
             }))}
+            popupMatchSelectWidth={false}
+            dropdownStyle={{ minWidth: 280 }}
           />
           <Select
             allowClear
@@ -553,10 +560,13 @@ export default function TeacherQuestions() {
             <Select
               showSearch
               placeholder="选择知识点"
+              style={{ width: "100%" }}
               options={editKPs.map((kp) => ({
                 value: kp.id,
-                label: `${kp.parentName ? kp.parentName + " > " : ""}${kp.name}`,
+                label: formatKPLabel(kp),
               }))}
+              popupMatchSelectWidth={false}
+              dropdownStyle={{ minWidth: 280 }}
               filterOption={(input, option) =>
                 (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
               }
