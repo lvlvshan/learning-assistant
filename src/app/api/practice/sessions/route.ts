@@ -8,15 +8,20 @@ export async function GET(request: NextRequest) {
   if (!auth) return unauthorizedResponse();
 
   const { searchParams } = request.nextUrl;
-  const studentId = searchParams.get("studentId") || auth.userId;
+  const studentIdParam = searchParams.get("studentId");
   const statusFilter = searchParams.get("status"); // 可选：COMPLETED | IN_PROGRESS
 
-  // 学生只能看自己，老师/admin 可以看所有
-  if (auth.role === "STUDENT" && studentId !== auth.userId) {
-    return NextResponse.json({ error: "无权限" }, { status: 403 });
+  // 学生只能看自己（必须传自己的 id 或省略）
+  if (auth.role === "STUDENT") {
+    if (studentIdParam && studentIdParam !== auth.userId) {
+      return NextResponse.json({ error: "无权限" }, { status: 403 });
+    }
   }
 
-  const where: any = { studentId };
+  // 教师/管理员：不传 studentId 时返回全部；传了则限定该学生
+  const where: any = {};
+  if (studentIdParam) where.studentId = studentIdParam;
+  else if (auth.role === "STUDENT") where.studentId = auth.userId;
   if (statusFilter) where.status = statusFilter;
 
   const sessions = await prisma.exerciseSession.findMany({
@@ -26,7 +31,7 @@ export async function GET(request: NextRequest) {
       _count: { select: { answers: true } },
     },
     orderBy: { createdAt: "desc" },
-    take: 50,
+    take: 200,
   });
 
   return NextResponse.json({ sessions });

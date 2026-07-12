@@ -23,8 +23,9 @@ export default function ClassAnalysis() {
     Promise.all([
       apiClient.get("/classes"),
       apiClient.get("/practice/sessions?status=COMPLETED"),
-    ]).then(([classRes]) => {
+    ]).then(([classRes, sessionRes]) => {
       setClasses(classRes.data.classes);
+      setSessions(sessionRes.data.sessions || []);
       if (classRes.data.classes.length > 0) {
         setSelectedClass(classRes.data.classes[0].id);
       }
@@ -34,21 +35,9 @@ export default function ClassAnalysis() {
 
   useEffect(() => {
     if (!selectedClass) return;
-    Promise.all([
-      apiClient.get(`/users?role=STUDENT`),
-      apiClient.get("/practice/sessions"),
-    ]).then(([userRes, sessionRes]) => {
-      const cls = classes.find((c) => c.id === selectedClass);
-      const classStudentIds = (userRes.data.users as any[])
-        .filter((u: any) => u.classId === selectedClass)
-        .map((u: any) => u.id);
+    apiClient.get(`/users?role=STUDENT`).then((userRes) => {
       setStudents(
         (userRes.data.users as any[]).filter((u: any) => u.classId === selectedClass)
-      );
-      setSessions(
-        (sessionRes.data.sessions as any[]).filter((s: any) =>
-          classStudentIds.includes(s.studentId)
-        )
       );
     });
   }, [selectedClass]);
