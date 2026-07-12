@@ -43,9 +43,27 @@ export async function POST(request: NextRequest) {
     await prisma.class.deleteMany();
     await prisma.user.deleteMany();
 
-    // 按依赖顺序串行写入
-    await prisma.user.createMany({ data: data.users });
-    await prisma.class.createMany({ data: data.classes });
+    // 1) 班级（先创建，User.classId 依赖 Class.id）
+    await prisma.class.createMany({
+      data: data.classes.map(({ students, teachers, ...c }: any) => c),
+    });
+
+    // 2) 用户（剔除反向关系字段，classId 已能引用上面创建的班级）
+    await prisma.user.createMany({
+      data: data.users.map(({ taughtClasses, ...u }: any) => u),
+    });
+
+    // 3) 恢复 User <-> Class 多对多关系（教师授课班级）
+    for (const u of data.users) {
+      if (Array.isArray(u.taughtClasses) && u.taughtClasses.length > 0) {
+        await prisma.user.update({
+          where: { id: u.id },
+          data: { taughtClasses: { connect: u.taughtClasses.map((c: any) => ({ id: c.id })) } },
+        });
+      }
+    }
+
+    // 4) 科目、资料、知识点
     await prisma.subject.createMany({ data: data.subjects });
     await prisma.learningMaterial.createMany({ data: data.materials });
     await prisma.materialChunk.createMany({ data: data.chunks });
@@ -56,11 +74,16 @@ export async function POST(request: NextRequest) {
       await prisma.knowledgePoint.create({ data: kp });
     }
 
+    // 5) 题目与练习
     await prisma.question.createMany({ data: data.questions });
     await prisma.exerciseSession.createMany({ data: data.sessions });
     await prisma.exerciseAnswer.createMany({ data: data.answers });
+
+    // 6) 掌握度
     await prisma.studentWeakness.createMany({ data: data.weaknesses });
     await prisma.masteryRecord.createMany({ data: data.masteries });
+
+    // 7) 系统配置与日志
     await prisma.systemConfig.createMany({ data: data.configs });
     await prisma.aIGenerationLog.createMany({ data: data.logs });
 
