@@ -81,51 +81,96 @@ export async function POST(
   });
 
   // 更新学生薄弱知识点
+  // 1) AI 识别的薄弱点（权威）
+  const updatedKpIds = new Set<string>();
   if (analysis.weakPoints.length > 0) {
     for (const wp of analysis.weakPoints) {
       const kp = await prisma.knowledgePoint.findFirst({
         where: { name: { contains: wp.knowledgePoint }, subjectId: session.subjectId },
       });
-      if (kp) {
-        const existing = await prisma.studentWeakness.findFirst({
-          where: {
-            studentId: session.studentId,
-            knowledgePointId: kp.id,
-          },
+      if (!kp) continue;
+
+      const existing = await prisma.studentWeakness.findFirst({
+        where: { studentId: session.studentId, knowledgePointId: kp.id },
+      });
+
+      const previousLevel = existing?.masteryLevel ?? 0;
+      const newLevel = Math.round(wp.masteryLevel);
+
+      if (existing) {
+        await prisma.studentWeakness.update({
+          where: { id: existing.id },
+          data: { masteryLevel: newLevel, lastPracticedAt: new Date() },
         });
-
-        if (existing) {
-          await prisma.studentWeakness.update({
-            where: { id: existing.id },
-            data: {
-              masteryLevel: Math.round(wp.masteryLevel),
-              lastPracticedAt: new Date(),
-            },
-          });
-        } else {
-          await prisma.studentWeakness.create({
-            data: {
-              studentId: session.studentId,
-              knowledgePointId: kp.id,
-              masteryLevel: Math.round(wp.masteryLevel),
-              bloomBreakdown: JSON.stringify({}),
-            },
-          });
-        }
-
-        // 记录掌握度变化
-        await prisma.masteryRecord.create({
+      } else {
+        await prisma.studentWeakness.create({
           data: {
             studentId: session.studentId,
             knowledgePointId: kp.id,
-            sessionId: id,
-            previousLevel: 0,
-            newLevel: Math.round(wp.masteryLevel),
-            delta: Math.round(wp.masteryLevel),
+            masteryLevel: newLevel,
+            bloomBreakdown: JSON.stringify({}),
           },
         });
       }
+
+      await prisma.masteryRecord.create({
+        data: {
+          studentId: session.studentId,
+          knowledgePointId: kp.id,
+          sessionId: id,
+          previousLevel,
+          newLevel,
+          delta: newLevel - previousLevel,
+        },
+      });
+      updatedKpIds.add(kp.id);
     }
+  }
+
+  // 2) 兜底：所有答错题目关联的知识点也计入薄弱（避免 AI 漏判导致数据缺失）
+  const wrongAnswers = session.answers.filter(a => !a.isCorrect);
+  const wrongKpIds = [
+    ...new Set(
+      wrongAnswers
+        .map(a => a.question?.knowledgePoint?.id)
+        .filter((id): id is string => Boolean(id) && !updatedKpIds.has(id))
+    ),
+  ];
+  for (const kpId of wrongKpIds) {
+    const existing = await prisma.studentWeakness.findFirst({
+      where: { studentId: session.studentId, knowledgePointId: kpId },
+    });
+    // 错题该知识点没有历史掌握度时，按 60% 计入薄弱（表示有提升空间）
+    const previousLevel = existing?.masteryLevel ?? 60;
+    const newLevel = Math.min(previousLevel, 60);
+
+    if (existing) {
+      await prisma.studentWeakness.update({
+        where: { id: existing.id },
+        data: { masteryLevel: newLevel, lastPracticedAt: new Date() },
+      });
+    } else {
+      await prisma.studentWeakness.create({
+        data: {
+          studentId: session.studentId,
+          knowledgePointId: kpId,
+          masteryLevel: newLevel,
+          bloomBreakdown: JSON.stringify({}),
+        },
+      });
+    }
+
+    await prisma.masteryRecord.create({
+      data: {
+        studentId: session.studentId,
+        knowledgePointId: kpId,
+        sessionId: id,
+        previousLevel,
+        newLevel,
+        delta: newLevel - previousLevel,
+      },
+    });
+    updatedKpIds.add(kpId);
   }
 
   return NextResponse.json({

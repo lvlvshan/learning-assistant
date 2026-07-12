@@ -6,15 +6,12 @@ import apiClient from "@/lib/api";
 
 export default function StudentProgress() {
   const [sessions, setSessions] = useState<any[]>([]);
-  const [weaknesses, setWeaknesses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      apiClient.get("/practice/sessions"),
-      apiClient.get("/users?role=STUDENT"),
-    ])
-      .then(([sessionRes]) => {
+    apiClient
+      .get("/practice/sessions")
+      .then((sessionRes) => {
         setSessions(sessionRes.data.sessions || []);
         setLoading(false);
       })
