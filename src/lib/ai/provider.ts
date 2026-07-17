@@ -68,18 +68,9 @@ export async function chatWithJSON<T>(
     cleanResponse = cleanResponse.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
   }
 
-  // 修复常见 JSON 语法错误：尾随逗号、缺失闭合括号
-  cleanResponse = cleanResponse.replace(/,\s*([}\]])/g, "$1");
-  const openBraces = (cleanResponse.match(/{/g) || []).length;
-  const closeBraces = (cleanResponse.match(/}/g) || []).length;
-  const openBrackets = (cleanResponse.match(/\[/g) || []).length;
-  const closeBrackets = (cleanResponse.match(/\]/g) || []).length;
-  if (openBraces > closeBraces) cleanResponse += "}".repeat(openBraces - closeBraces);
-  if (openBrackets > closeBrackets) cleanResponse += "]".repeat(openBrackets - closeBrackets);
-
   try {
     return JSON.parse(cleanResponse) as T;
-  } catch {
-    throw new Error(`AI 返回格式错误：无法解析 JSON\n响应：${cleanResponse.slice(0, 500)}`);
+  } catch (err) {
+    throw new Error(`AI 返回格式错误：无法解析 JSON 响应：${cleanResponse}`);
   }
 }
